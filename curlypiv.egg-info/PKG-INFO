@@ -1,0 +1,21 @@
+Metadata-Version: 2.1
+Name: curlypiv
+Version: 0.0.1
+Summary: A Python implementation of micro particle image velocimetry
+Home-page: https://github.com/sean-mackenzie/curlypiv
+Author: Sean MacKenzie
+Author-email: sean_mackenzie@ucsb.edu
+License: MIT
+Description: 
+        # curlypiv
+        Python-based image processing, micro-PIV, and plotting tools
+        
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: Implementation :: CPython
+Classifier: Programming Language :: Python :: Implementation :: PyPy
+Requires-Python: >=3.8.0
+Description-Content-Type: text/markdown

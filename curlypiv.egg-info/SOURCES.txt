@@ -1,0 +1,17 @@
+README.md
+setup.py
+curlypiv/CurlypivImage.py
+curlypiv/CurlypivImageCollection.py
+curlypiv/CurlypivImageProcessing.py
+curlypiv/CurlypivPlotting.py
+curlypiv/CurlypivSetup.py
+curlypiv/CurlypivUtils.py
+curlypiv/__init__.py
+curlypiv/__version__.py
+curlypiv.egg-info/PKG-INFO
+curlypiv.egg-info/SOURCES.txt
+curlypiv.egg-info/dependency_links.txt
+curlypiv.egg-info/requires.txt
+curlypiv.egg-info/top_level.txt
+curlypiv/utils/__init__.py
+curlypiv/utils/__version__.py
