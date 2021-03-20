@@ -43,7 +43,7 @@ def find_testcollection(dirsearch, filetype,
 
 # def create_imagecollections(filelist):
 
-def find_substring(string, leadingstring='E', trailingstring='Vmm', dtype=float, magnitude=False,
+def find_substring(string, leadingstring='', trailingstring='', dtype=float, magnitude=False,
                    leadingsecond=None,trailingsecond=None):
 
     ids = [[leadingstring, trailingstring],[leadingsecond, trailingsecond]]
@@ -52,8 +52,8 @@ def find_substring(string, leadingstring='E', trailingstring='Vmm', dtype=float,
     for index, k in enumerate(ids):
 
         # need to add a check if the string is empty
-        if k == [None, None]: break
-
+        if k == [None, None]:
+            break
         if dtype == int:
             key = int(re.search(k[0] + '(.*)' + k[1], string).group(1))
         else:

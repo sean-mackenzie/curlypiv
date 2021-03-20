@@ -1,2 +1,2 @@
-from .CurlypivImageCollection import CurlypivImageCollection
-from .CurlypivImage import CurlypivImage
+from .CurlypivTestCollection import CurlypivTestCollection
+from .CurlypivFile import CurlypivFile

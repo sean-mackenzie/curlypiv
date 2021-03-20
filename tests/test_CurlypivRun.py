@@ -7,9 +7,9 @@ Notes about the program
 from os import listdir
 from os.path import join
 
-from curlypiv import CurlypivImageCollection
-from curlypiv.CurlypivImageCollection import CurlypivRun
-from curlypiv.CurlypivImage import CurlypivImage
+from curlypiv import CurlypivTestCollection
+from curlypiv.CurlypivTestCollection import CurlypivRun
+from curlypiv.CurlypivFile import CurlypivFile
 
 # test zeta potential measurement via micro particle image velocimetry analysis
 
@@ -20,7 +20,7 @@ from curlypiv.CurlypivImage import CurlypivImage
 base_path = '/Users/mackenzie/Desktop/03.18.21-ZuPIV_test'
 tests_folder = 'tests'
 loc = 'loc1'
-test='E-1Vmm'
+test='E2.5Vmm'
 run='run1num'
 dirread = join(base_path,tests_folder,loc,test,run)
 

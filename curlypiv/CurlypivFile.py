@@ -22,14 +22,14 @@ from curlypiv import CurlypivImageProcessing
 
 # 2.0 define class
 
-class CurlypivImage(object):
+class CurlypivFile(object):
     """
     This class holds an image along with its properties such as:
     raw image, filtered, image, path, filename, and statistics.
     """
 
     def __init__(self, path, img_type, ):
-        super(CurlypivImage, self).__init__()
+        super(CurlypivFile, self).__init__()
 
         # Attributes with an underscore as first character are for internal use only.
 
@@ -186,6 +186,14 @@ class CurlypivImage(object):
 
         return(particles)
 
+
+    @property
+    def name(self):
+        return self._filename
+
+    @property
+    def path(self):
+        return self._filepath
 
     @property
     def filename(self):
