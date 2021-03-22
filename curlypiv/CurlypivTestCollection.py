@@ -76,6 +76,7 @@ class CurlypivTestCollection(object):
         repr_dict = {'Name': self._collectionName,
                      'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
+                     'Test collection identifier': self.dir_tests,
                      'Number of files': len(self),
                      'Cropping': self.cropping_specs,
                      'Preprocessing': self.processing_specs}
@@ -123,6 +124,16 @@ class CurlypivTestCollection(object):
         for key, values in self.locs.items(): size += values.size
         self._size = size
 
+    def get_sublevel(self, key):
+
+        sub = self.locs
+
+        for k, v in sub.items():
+            if k == key:
+                item = v
+
+        return item
+
     @property
     def name(self):
         return self._collectionName
@@ -165,6 +176,7 @@ class CurlypivLocation(object):
         class_ = 'CurlypivLocation'
         repr_dict = {'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
+                     'Location identifier': self._locname,
                      'Test list': self.test_list,
                      'Total number of images': self._size}
         out_str = "{}: \n".format(class_)
@@ -217,6 +229,16 @@ class CurlypivLocation(object):
         for key, values in self.tests.items(): size += values.size
         self._size = size
 
+    def get_sublevel(self, key):
+
+        sub = self.tests
+
+        for k, v in sub.items():
+            if k == key:
+                item = v
+
+        return item
+
     @property
     def name(self):
         return self._locname
@@ -262,6 +284,7 @@ class CurlypivTest(object):
         class_ = 'CurlypivTest'
         repr_dict = {'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
+                     'Test identifier': self._testname,
                      'Run list': self.run_list,
                      'Total number of images': self._size}
         out_str = "{}: \n".format(class_)
@@ -311,6 +334,16 @@ class CurlypivTest(object):
         for key, values in self.runs.items(): size += values.size
         self._size = size
 
+    def get_sublevel(self, key):
+
+        sub = self.runs
+
+        for k, v in sub.items():
+            if k == key:
+                item = v
+
+        return item
+
     @property
     def name(self):
         return self._testname
@@ -358,7 +391,8 @@ class CurlypivRun(object):
         class_ = 'CurlypivRun'
         repr_dict = {'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
-                     'SequenceList': self.seqs,
+                     'Run identifier': self._runname,
+                     'Sequence list': self.seq_list,
                      'Number of files': self._size}
         out_str = "{}: \n".format(class_)
         for key, val in repr_dict.items():
@@ -434,6 +468,16 @@ class CurlypivRun(object):
     def _get_size(self):
         self._size = len(self.filepaths)
 
+    def get_sublevel(self, key):
+
+        sub = self.seqs
+
+        for k, v in sub.items():
+            if k == key:
+                item = v
+
+        return item
+
     @property
     def name(self):
         return self._runname
@@ -465,6 +509,17 @@ class CurlypivSequence(object):
 
         self._add_files()
 
+    def __repr__(self):
+        class_ = 'CurlypivSequence'
+        repr_dict = {'Dirpath': self.dirpath,
+                     'Filetype': self.file_type,
+                     'Sequence identifier': self._seqname,
+                     'Number of files': self._size}
+        out_str = "{}: \n".format(class_)
+        for key, val in repr_dict.items():
+            out_str += '{}: {} \n'.format(key, str(val))
+        return out_str
+
     def _add_files(self):
         files = OrderedDict()
         for f in self.file_list:
@@ -475,6 +530,16 @@ class CurlypivSequence(object):
 
     def _get_size(self):
         self._size = len(self.file_list)
+
+    def get_sublevel(self, key):
+        sub = self.files
+
+        for k, v in sub.items():
+            if k == key:
+                item = v
+
+        return item
+
 
     @property
     def name(self):

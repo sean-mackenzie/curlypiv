@@ -8,9 +8,9 @@ Notes about program
 
 # 2.0 define class
 
-class CurlypivSetup(object):
+class CurlypivTestSetup(object):
 
-    def __init__(self):
+    def __init__(self, name):
         """
         All the "settings" used in the experimental setup:
         1. chip (class)
@@ -69,6 +69,7 @@ class CurlypivSetup(object):
                 4.2.3 field of view (e.g. 500 x 500 um)
                 4.2.4 depth of focus (e.g 4.1 microns)
         """
+        self.name = name
         self.chip = None
         self.test_solution = None
         self.illumination = None

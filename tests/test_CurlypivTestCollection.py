@@ -7,6 +7,7 @@ Notes about the program
 from os import listdir
 from os.path import join
 
+import curlypiv
 from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest, CurlypivTestCollection
 
 # test zeta potential measurement via micro particle image velocimetry analysis
@@ -27,5 +28,9 @@ frameid = '_X'
 test = CurlypivTestCollection(name, base_path, file_type=img_type, testid=testid, runid=runid, seqid=seqid, frameid=frameid)
 
 print(test)
+
+loc = test.locs
+
+print(loc)
 
 print('yes sir!')

@@ -81,3 +81,10 @@ def size_files(filelist):
 
     print("Image sizes in file list: " + str(sizes))
     return (sizes)
+
+
+def get_sublevel(fileCollection, key):
+
+    sub = fileCollection.get_sublevel(key)
+
+    return sub
