@@ -134,6 +134,15 @@ class CurlypivTestCollection(object):
 
         return item
 
+    def get_sublevel_all(self):
+        sub = self.locs
+        all_subs = []
+
+        for k, v in sub.items():
+            all_subs.append(v)
+
+        return all_subs
+
     @property
     def name(self):
         return self._collectionName
@@ -238,6 +247,16 @@ class CurlypivLocation(object):
                 item = v
 
         return item
+
+    def get_sublevel_all(self):
+        sub = self.tests
+        all_subs = []
+
+        for k, v in sub.items():
+            all_subs.append(v)
+
+        return all_subs
+
 
     @property
     def name(self):
@@ -344,6 +363,36 @@ class CurlypivTest(object):
 
         return item
 
+    def get_sublevel_all(self):
+        sub = self.runs
+        all_subs = []
+
+        for k, v in sub.items():
+            all_subs.append(v)
+
+        return all_subs
+
+    def add_piv_data(self):
+
+        u_mag_bkg = []
+        u_mag_mean = []
+        u_mag_std = []
+        u_mean = []
+        v_mean = []
+
+        for run in self.runs.values():
+            u_mag_bkg.append(run.u_mag_bkg)
+            u_mag_mean.append(run.u_mag_mean)
+            u_mag_std.append(run.u_mag_std)
+            u_mean.append(run.u_mean)
+            v_mean.append(run.v_mean)
+
+        self.u_mag_bkg = np.round(np.mean(u_mag_bkg),1)
+        self.u_mag_mean = np.round(np.mean(u_mag_mean), 1)
+        self.u_mag_std = np.round(np.mean(u_mag_std), 1)
+        self.u_mean = np.round(np.mean(u_mean), 1)
+        self.v_mean = np.round(np.mean(v_mean), 1)
+
     @property
     def name(self):
         return self._testname
@@ -381,7 +430,6 @@ class CurlypivRun(object):
         self._find_filepaths()
         self._find_seqpaths()
         self._add_seqs()
-        #self._add_files()
         self._get_size()
 
     def __len__(self):
@@ -478,6 +526,40 @@ class CurlypivRun(object):
 
         return item
 
+    def get_sublevel_all(self):
+        sub = self.seqs
+        all_subs = []
+
+        for k, v in sub.items():
+            all_subs.append(v)
+
+        return all_subs
+
+    def add_piv_data(self):
+
+        u_mag_bkg = []
+        u_mag_mean = []
+        u_mag_std = []
+        u_mean = []
+        v_mean = []
+
+        for seq in self.seqs.values():
+            if seq.name == 0:
+                u_mag_bkg.append(seq.u_mag_bkg)
+            u_mag_mean.append(seq.u_mag_mean)
+            u_mag_std.append(seq.u_mag_std)
+            u_mean.append(seq.u_mean)
+            v_mean.append(seq.v_mean)
+
+        self.u_mag_bkg = np.round(np.mean(u_mag_bkg),1)
+        self.u_mag_mean = np.round(np.mean(u_mag_mean), 1)
+        self.u_mag_std = np.round(np.mean(u_mag_std), 1)
+        self.u_mean = np.round(np.mean(u_mean), 1)
+        self.v_mean = np.round(np.mean(v_mean), 1)
+
+
+
+
     @property
     def name(self):
         return self._runname
@@ -495,7 +577,7 @@ class CurlypivRun(object):
 class CurlypivSequence(object):
 
     def __init__(self, dirpath, file_type, seqname, filelist,
-                 frameid = '_X',
+                 load_files=False, frameid = '_X',
                  exclude=[]):
 
         self.dirpath = dirpath
@@ -503,11 +585,9 @@ class CurlypivSequence(object):
         self.frameid = frameid
         self._seqname = seqname
         self.file_list = filelist
+        self.get_size()
 
-        self._add_files()
-        self._get_size()
-
-        self._add_files()
+        self.add_files(load_files)
 
     def __repr__(self):
         class_ = 'CurlypivSequence'
@@ -520,18 +600,33 @@ class CurlypivSequence(object):
             out_str += '{}: {} \n'.format(key, str(val))
         return out_str
 
-    def _add_files(self):
+    def add_files(self, load_file, file_lim=250):
         files = OrderedDict()
-        for f in self.file_list:
-            file = CurlypivFile(join(self.dirpath,f), img_type=self.file_type)
-            files.update({file.filename: file})
-            logger.warning('Loaded image {}'.format(file.filename))
+        if load_file:
+            file_num = 0
+            for f in self.file_list:
+                file = CurlypivFile(join(self.dirpath,f), img_type=self.file_type)
+                files.update({file.filename: file})
+
+                if file_num == file_lim:
+                    logger.warning("Added the maximum number of files to sequence")
+
+                file_num += 1
+
         self.files = files
 
-    def _get_size(self):
+    def refresh_files(self):
+        if len(self.files) < 1:
+            self.add_files(load_file=True)
+
+    def get_size(self):
         self._size = len(self.file_list)
 
     def get_sublevel(self, key):
+
+        if len(self.files) < 1:
+            self.add_files(load_file=True)
+
         sub = self.files
 
         for k, v in sub.items():
@@ -539,6 +634,38 @@ class CurlypivSequence(object):
                 item = v
 
         return item
+
+    def get_sublevel_all(self):
+        if len(self.files) < 1:
+            self.add_files(load_file=True)
+
+        sub = self.files
+        all_subs = []
+
+        for k, v in sub.items():
+            all_subs.append(v)
+
+        return all_subs
+
+    def add_piv_data(self, u_mag_mean=None, u_mag_std=None, u_mean=None, v_mean=None, u_mag_bkg=None):
+
+        self.u_mag_mean = np.mean(u_mag_mean)
+        self.u_mag_std = np.mean(u_mag_std)
+        self.u_mean = np.mean(u_mean)
+        self.v_mean = np.mean(v_mean)
+        if u_mag_bkg is not None:
+            self.u_mag_bkg = np.mean(u_mag_bkg)
+
+    def remove_files(self, file='all'):
+        # code for removing a single file
+        # would go here
+
+        if file == 'all':
+            files = OrderedDict()
+
+        self.files = files
+
+
 
 
     @property

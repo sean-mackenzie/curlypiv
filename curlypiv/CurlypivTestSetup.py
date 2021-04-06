@@ -4,13 +4,15 @@ Notes about program
 """
 
 # 1.0 import modules
-
+import numpy as np
+from skimage import io
+from curlypiv.utils.calibrateCamera import measureIlluminationDistributionXY, calculate_depth_of_correlation
 
 # 2.0 define class
 
 class CurlypivTestSetup(object):
 
-    def __init__(self, name):
+    def __init__(self, name, chip, optics, fluid_handling_system):
         """
         All the "settings" used in the experimental setup:
         1. chip (class)
@@ -70,51 +72,212 @@ class CurlypivTestSetup(object):
                 4.2.4 depth of focus (e.g 4.1 microns)
         """
         self.name = name
-        self.chip = None
-        self.test_solution = None
-        self.illumination = None
-        self.microscope = None
-        self.particles = None
+        self.chip = chip
+        self.optics = optics
+        self.fluid_handling_system = fluid_handling_system
 
 class chip(object):
 
-    def __init__(self, material=None,channel=None, reservoir=None,electrodes=None):
+    def __init__(self, material=None, channel=None, bpe=None, reservoir=None, electrodes=None, fluid_handling_system=None,
+                 material_in_optical_path=None, thickness_in_optical_path=None):
         """
         Everything important about the chip
         """
         self.material = material
         self.channel = channel
-        self.reservoir = reservoir
+        self.bpe = bpe
         self.electrodes = electrodes
+        self.fluid_handling_system = fluid_handling_system
+        self.material_in_optical_path = material_in_optical_path
+        self.thickness_in_optical_path = thickness_in_optical_path
 
-class material_solid(object):
+class channel(object):
 
-    def __init__(self, concentration=None, transparency=None, fluorescence_spectra=None,zeta=None):
+    def __init__(self, length=None, width=None, height=None, material_wall_surface=None, material_fluid=None):
         """
-        everything about a material
-        :param transparency:
-        :param fluorescence_spectra:
-        :param zeta:
+        Everything important about the chip
         """
-        self.concentration = concentration # For a solid, this is % by volume.
-        self.transparency = transparency
-        self.fluorescence_spectra = fluorescence_spectra
-        self.zeta = zeta
+        self.length = length
+        self.width = width
+        self.height = height
+        self.material_wall_surface = material_wall_surface  # material should only hold relevant electrokinetic data
+        self.material_fluid = material_fluid                # could be a mixture of liquid materials + fluorescent particles
 
-class material_liquid(object):
+class bpe(object):
 
-    def __init__(self, species=None, concentration=None, conductivity=None, pH=None):
+    def __init__(self, length=None, width=None, height=None, material=None):
         """
-        everything about a liquid
-        :param species:
-        :param concentration:
-        :param conductivity:
-        :param pH:
+        Everything important about the chip
         """
-        self.species = species
-        self.concentration = concentration
-        self.conductivity = conductivity
-        self.pH = pH
+        self.length = length
+        self.width = width
+        self.height = height
+        self.material = material
+
+class optics(object):
+    def __init__(self, microscope, illumination, fluorescent_particles=None, pixel_to_micron_scaling=None):
+        self.microscope = microscope
+        self.illumination = illumination
+        self.fluorescent_particles = fluorescent_particles
+
+        if microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is None:
+            self.pixel_to_micron = microscope.objective.pixel_to_micron
+        elif microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is not None:
+            raise ValueError("Conflicting scaling factors: microscope.objective={}, optics={}".format(microscope.objective.pixel_to_micron, pixel_to_micron_scaling))
+        elif microscope.objective.pixel_to_micron is None and pixel_to_micron_scaling is not None:
+            self.pixel_to_micron = pixel_to_micron_scaling
+
+class illumination(object):
+
+    def __init__(self, source=None, excitation=None, emission=None, dichroic=None, illumination_distribution=None,
+                 calculate_illumination_distribution=False,
+                 illumPath=None, illumSavePath=None, illumSaveName=None, showIllumPlot=False):
+        """
+        details about the optical setup
+        :param source:
+        :param excitation:
+        :param emission:
+        :param dichroic:
+        """
+        self.source=source
+        self.excitation_wavelength=excitation
+        self.emission_wavelength=emission
+        self.dichroic=dichroic
+        if illumination_distribution is not None:
+            if isinstance(illumination_distribution, str):
+                self.illumination_distribution = io.imread(illumination_distribution, plugin='tifffile')
+            else:
+                self.illumination_distribution = illumination_distribution
+        elif calculate_illumination_distribution and illumination_distribution is None:
+            self.illumination_distribution = measureIlluminationDistributionXY(illumPath=illumPath, num_images=50,
+                                                                           show_image=showIllumPlot, save_image=False, save_img_type='.tif',
+                                                                        save_txt=False, show_plot=showIllumPlot, save_plot=False,
+                                                                        savePath=illumSavePath, savename=illumSaveName)
+        else:
+            self.illumination_distribution = illumination_distribution
+
+
+class microscope(object):
+
+    def __init__(self, type, objective, illumination, ccd):
+        """
+        describes the micrscope setup
+        :param type:
+        :param objective:
+        """
+        self.type = type            # e.g. Olympus iX73
+        self.objective = objective
+        self.illumination = illumination
+        self.ccd = ccd
+
+class ccd(object):
+
+    def __init__(self, exposure_time, img_acq_rate, EM_gain, binning=None,
+                 vertical_pixel_shift_speed=0.5e-6, horizontal_pixel_shift_speed=0.1e-6, horizontal_pixel_shift_rate_bits=14,
+                 frame_transfer=True, crop_mode=False, acquisition_mode='kinetic', triggering='internal', readout_mode='image',
+                 pixels=512, pixel_size=16e-6):
+        """
+        describe the CCD class
+        """
+        self.exposure_time = exposure_time
+        self.img_acq_rate = img_acq_rate
+        self.em_gain = EM_gain
+        self.binning = binning
+
+        # supporting camera acquisition settings
+        self.vpss = vertical_pixel_shift_speed
+        self.hpss = horizontal_pixel_shift_speed
+        self.hpss_bits = horizontal_pixel_shift_rate_bits
+        self.frame_transfer = frame_transfer
+        self.crop_mode = crop_mode
+        self.acquisition_mode = acquisition_mode
+        self.triggering = triggering
+        self.readout_mode = readout_mode
+
+        if isinstance(pixels, int):
+            self.pixels = (pixels, pixels)
+        else:
+            self.pixels = pixels
+        self.pixel_size = pixel_size
+        self.image_area = (self.pixels[0]*pixel_size, self.pixels[1]*pixel_size)
+
+
+class objective(object):
+
+    def __init__(self, numerical_aperture, magnification, fluoro_particle, illumination=None, wavelength=None, microgrid=None, auto_calc_pix_to_micron_scaling=False, pixel_to_micron=None, field_number=None, n0=1):
+        self.numerical_aperture = numerical_aperture
+        self.magnification = magnification
+        self.field_number = field_number        # field number for 50X LCPLFLN50XLCD is 26.5 mm
+        self._illumination = illumination
+        if self._illumination is not None:
+            self._wavelength = self._illumination.emission_wavelength
+        elif wavelength is not None:
+            self._wavelength = wavelength
+        else:
+            raise ValueError("A wavelength is required via the <illumination> class or <wavelength> input parameter")
+        self._pd = fluoro_particle.diameter
+        self._n0 = n0
+        self.calculate_depth_of_field()
+        self.calculate_depth_of_correlation()
+
+        if field_number:
+            self.calculate_field_of_view()
+
+        # grids and scaling factors
+        self.microgrid = microgrid
+        if auto_calc_pix_to_micron_scaling and self.pixel_to_micron is None:
+            self.calculate_pixel_to_micron_scaling()
+        else:
+            self.pixel_to_micron = pixel_to_micron
+
+
+    def calculate_field_of_view(self):
+        self.field_of_view = self.field_number / self.magnification
+
+    def calculate_depth_of_field(self, e=16e-6, n=1):
+        """
+        e: CCD pixel resolution     example: e = 16 um (16 microns is the pixel size)
+        """
+        self.depth_of_field = self._wavelength*n/self.numerical_aperture**2+e*n/(self.magnification*self.numerical_aperture)
+
+    def calculate_depth_of_correlation(self, eps=0.01):
+        # step 0: define
+        n = self._n0
+        dp = self._pd
+        NA = self.numerical_aperture
+        M = self.magnification
+        lmbda = self._wavelength
+
+        # step 1: calculate the depth of correlation for the optical setup
+        depth_of_correlation = calculate_depth_of_correlation(M=M, NA=NA, dp=dp, n=n, lmbda=lmbda, eps=eps)
+
+        self.depth_of_correlation = depth_of_correlation
+
+    def calculate_pixel_to_micron_scaling(self):
+        if self.microgrid is None:
+            raise ValueError("Need objective.microgrid property in order to calculate scaling factor")
+        # script to calculate scaling factor from grid
+            # would go here
+
+    @property
+    def NA(self):
+        return self.numerical_aperture
+
+    @property
+    def M(self):
+        return self.magnification
+
+class microgrid(object):
+
+    def __init__(self, gridPath=None, center_to_center_spacing=None, feature_width=None, grid_type='grid'):
+        """
+        this class holds images for the microgrid and performs pixel to micron scaling calculations
+        """
+        self.gridPath = gridPath
+        self.spacing = center_to_center_spacing
+        self.width = feature_width
+        self.grid_type = grid_type
+
 
 class fluorescent_particles(object):
 
@@ -135,6 +298,55 @@ class fluorescent_particles(object):
         self.concentration=concentration
         self.electrophoretic_mobility=electrophoretic_mobility
         self.zeta=zeta
+
+class reservoir(object):
+
+    def __init__(self, diameter, height, height_of_reservoir=None, material=None):
+        """
+        describes the micrscope setup
+        :param type:
+        :param objective:
+        """
+        g = 9.81 # m/s**2
+
+        self.material = material
+        self.diameter = diameter
+        self.height = height
+        self.volume = np.pi*self.diameter**2/4
+        self.height_of_reservoir = height_of_reservoir
+        if material and height_of_reservoir:
+            self.hydrostatic_pressure = material.density*g*self.height_of_reservoir
+
+class fluid_handling_system(object):
+
+    def __init__(self, fluid_reservoir=None, all_tubing=None, onchip_reservoir=None):
+        """
+        describes the fluid handling system
+        """
+        self.fluid_reservoir=fluid_reservoir
+        self.all_tubing = all_tubing
+        self.onchip_reservoir = onchip_reservoir
+
+class tubing(object):
+
+    def __init__(self, inner_diameter=None, length=None, material=None):
+        """
+        describes each segment of tubing
+
+        """
+        self.inner_diameter = inner_diameter
+        self.length = length
+        self.material = material
+
+class optical_element(object):
+
+    def __init__(self, passing_wavelengths=None, reflectivity=None):
+        """
+        this class describes the optical characteristics of any material or element
+        :param wavelength_bandpass:
+        """
+        self.passing_wavelengths=passing_wavelengths
+        self.reflectivity=reflectivity
 
 class measurable_quantity(object):
 
@@ -169,47 +381,41 @@ class electrode_configuration(object):
         self.length = length
         self.entrance_length = entrance_length
 
-class illumination(object):
+class material_solid(object):
 
-    def __init__(self, source=None, excitation=None, emission=None,dichroic=None):
+    def __init__(self,  zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None):
         """
-        details about the optical setup
-        :param source:
-        :param excitation:
-        :param emission:
-        :param dichroic:
+        everything about a material
+        :param transparency:
+        :param fluorescence_spectra:
+        :param zeta:
         """
-        self.source=source
-        self.excitation=excitation
-        self.emission=emission
-        self.dichroic=dichroic
+        # mechanical
+        self.concentration = concentration # For a solid, this is % by volume.
 
-class optical_element(object):
+        # optical
+        self.index_of_refraction = index_of_refraction
+        self.fluorescence_spectra = fluorescence_spectra
+        self.transparency = transparency
+        if self.transparency:
+            self.reflectivity = 1 / self.transparency
+        # chemical
+        self.zeta = zeta
 
-    def __init__(self, passing_wavelengths=None, reflectivity=None):
+class material_liquid(object):
+
+    def __init__(self, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None):
         """
-        this class describes the optical characteristics of any material or element
-        :param wavelength_bandpass:
+        everything about a liquid
+        :param species:
+        :param concentration:
+        :param conductivity:
+        :param pH:
         """
-        self.passing_wavelengths=passing_wavelengths
-        self.reflectivity=reflectivity
+        self.species = species
+        self.concentration = concentration
+        self.conductivity = conductivity
+        self.pH = pH
 
-class microscope(object):
-
-    def __init__(self, type=None, objective=None):
-        """
-        describes the micrscope setup
-        :param type:
-        :param objective:
-        """
-        self.type = type            # e.g. Olympus iX73
-        self.objective = objective
-
-class objective(object):
-
-    def __init__(self, numerical_aperture=None, magnification=None,field_of_view=None,depth_of_focus=None):
-        self.numerical_aperture = numerical_aperture
-        self.magnification = magnification
-        self.field_of_view = field_of_view
-        self.depth_of_focus = depth_of_focus
-
+        self.density = density
+        self.viscosity = viscosity

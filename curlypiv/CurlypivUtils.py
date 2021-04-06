@@ -88,3 +88,6 @@ def get_sublevel(fileCollection, key):
     sub = fileCollection.get_sublevel(key)
 
     return sub
+
+def round_to_odd(f):
+    return int(np.round(f) // 2 * 2 + 1)
