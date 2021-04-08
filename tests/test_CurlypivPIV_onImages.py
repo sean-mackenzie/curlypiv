@@ -59,7 +59,7 @@ from curlypiv.CurlypivTestSetup import CurlypivTestSetup
 from curlypiv.CurlypivPIV import CurlypivPIV
 from curlypiv.CurlypivPIVSetup import CurlypivPIVSetup
 from curlypiv.CurlypivFile import CurlypivFile
-from curlypiv.CurlypivImageProcessing import resize, subtract_background, filter
+from curlypiv.CurlypivImageProcessing import img_resize, img_subtract_background, img_filter
 
 
 # ------------------------- test CurlypivPIV below ------------------------------------

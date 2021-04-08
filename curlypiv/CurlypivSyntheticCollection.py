@@ -27,6 +27,7 @@ from skimage import io
 # Curlypiv
 import curlypiv.CurlypivTestCollection
 from curlypiv.CurlypivTestCollection import CurlypivSequence
+from curlypiv.utils.microsig import CurlypivMicrosigCollection
 from curlypiv.CurlypivFile import CurlypivFile
 from curlypiv.CurlypivUtils import find_substring
 
@@ -34,7 +35,8 @@ from curlypiv.CurlypivUtils import find_substring
 # 2.0 define class
 class CurlypivSyntheticCollection(object):
 
-    def __init__(self, testSetup, imgSamplingPath=None, imgIlluminationXYPath=None, num_images=50, img_type='.tif'):
+    def __init__(self, testSetup, imgSamplingPath=None, imgIlluminationXYPath=None, num_images=50, img_type='.tif',
+                 export_settings_file=True, export_settings_path=None, export_settings_name=None):
 
         assert isinstance(testSetup, object)
 
@@ -47,6 +49,8 @@ class CurlypivSyntheticCollection(object):
 
         self.sampleImage(p_bkg=90, p_sig=90)
         self.initializeMicroSigSetup(background_mean=self.bkg_mean, background_noise=self.bkg_noise)
+        self.save_settings_to_file(export_settings_file=export_settings_file, export_settings_path=export_settings_path,
+                                   export_settings_name=export_settings_name)
 
     def initializeMicroSigSetup(self, focal_length=3e-3,
                                 background_mean=0, background_noise=0, points_per_pixel=15,
@@ -69,6 +73,24 @@ class CurlypivSyntheticCollection(object):
             gain=gain,
             cyl_focal_length=cyl_focal_length,
         )
+
+    def save_settings_to_file(self, export_settings_file, export_settings_path, export_settings_name):
+        if export_settings_file:
+            if not isinstance(self.microsigSetup, dict):
+                raise ValueError("{} must be a dict".format(self.microsigSetup))
+
+            # adjust dictionary for proper microsig units
+            operations = [1, 1, 1e3, 1, 1, 1e6, 1, 1, 1e6, 1, 1, 1, 1, 1, 1]
+            update_dict = {}
+            for index, value in enumerate(self.microsigSetup):
+                update_dict[value] = self.microsigSetup[value] * operations[index]
+
+            with open(export_settings_path+'/'+export_settings_name, "w") as f:
+                for key, value in update_dict.items():
+                    f.write('%s:%s\n' % (key, value))
+
+            print("microsig settings saved to file.")
+
 
     def sampleImage(self, p_bkg=75, p_sig=95):
 
@@ -133,8 +155,14 @@ class CurlypivSyntheticCollection(object):
         imgiXYSequence = CurlypivSequence(dirpath=self.imgIlluminationXYPath, file_type=self.img_type, seqname='iXY',
                                           filelist=listIllumXYPath, load_files=True, frameid='_X')
 
+    def generate_synthetic_imageset(self, setting_file, data_files, destination_folder, use_gui=False, output_dtype='np.uint16',
+                                    use_internal_setting=False, use_internal_data=False, to_internal_sequence=False):
 
-
-
-
+        self.microsigCol = CurlypivMicrosigCollection(testSetup=self.setup, synCol=self, use_gui=use_gui,
+                                                 use_internal_setting=use_internal_setting,
+                                                 use_internal_data=use_internal_data,
+                                                 to_internal_sequence=to_internal_sequence, output_dtype=output_dtype,
+                                                 setting_file=setting_file, data_files=data_files,
+                                                 destination_folder=destination_folder,
+                                                 )
 

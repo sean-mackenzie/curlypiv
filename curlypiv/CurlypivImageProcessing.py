@@ -41,7 +41,17 @@ sys.path.append(os.path.abspath("/Users/mackenzie/PycharmProjects/openpiv/openpi
 
 # 2.0 functions
 
-def resize(img, method='rescale', scale=2, preserve_range=True):
+def img_correct_flatfield(img, img_flatfield, img_darkfield):
+
+    m = np.mean(img_flatfield - img_darkfield)
+
+    img_corrected = (img - img_darkfield) * m / (img_flatfield - img_darkfield)
+
+    img_corrected = rescale_intensity(img_corrected, in_range='image', out_range='uint16')
+
+    return img_corrected
+
+def img_resize(img, method='rescale', scale=2, preserve_range=True):
     """
     This resizes and interpolates an image. Potentially useful when forced to reduce bit-depth from 16 to 8 for cv2.
     :param im: 16-bit numpy array
@@ -67,7 +77,7 @@ def resize(img, method='rescale', scale=2, preserve_range=True):
     return(img)
 
 
-def subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_filepath=None):
+def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_filepath=None):
     """
     This subtracts a background input image from the signal input image.
     :param bg_method:
@@ -107,46 +117,16 @@ def subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_file
     img_masked = np.asarray(np.rint(img_masked*255), dtype='uint16')
     img_mask = img_masked > np.median(img_masked)
 
-
-
     # background sub images
     img_bg = img.copy()
     img_bg[img_mask] = 0
     img_bgs = img.copy()
     img_bgs[~img_mask] = 0
 
-    """
-    mask_filtered = gaussian(mask, sigma=3, preserve_range=True)
-    mf_mean = np.mean(mask_filtered)
-    mf_std = np.std(mask_filtered)
-    mask_invert = mask_filtered < mf_mean + mf_std*3
-    mask = mask_filtered > mf_mean + mf_std*3
-
-    img_mask = mask.copy()
-
-    img_bgs = img.copy()
-    img_bgs[mask_invert] = 0
-
-    img_bg = img.copy()
-    img_masked = img_as_float(img, force_copy=True)
-
-    mask_true = np.all(mask)
-    if mask_true == False:
-        img_bg[mask] = 0
-
-        #img_masked[mask_invert] = img_masked[mask_invert] * 2
-
-        img_temp = img_as_float(img_bg) / 1.5
-        img_masked = img_masked - img_temp
-        img_masked = equalize_adapthist(img_masked)
-        img_masked = gaussian(img_masked, sigma=1, preserve_range=True)
-        img_masked = np.asarray(np.rint(img_masked*2**16), dtype='uint16')
-    """
-
     return(img_bg, img_bgs, img_mask, img_masked)
 
 
-def filter(img, filterspecs):
+def img_filter(img, filterspecs):
     """
     This is an image filtering function. The argument filterdict are similar to the arguments of the...
     e.g. filterdict: {'median': 5, 'gaussian':3}
@@ -179,13 +159,16 @@ def filter(img, filterspecs):
             else:
                 kwargs = {}
 
-            img_filtered = apply_filter(img, func, *args, **kwargs)
+            img_filtered = img_apply_filter(img, func, *args, **kwargs)
             filtering_sequence += 1
 
     return(img_filtered)
 
+def img_apply_filter(img, func, *args, **kwargs):
+    assert callable(func)
+    return func(img, *args, **kwargs)
 
-def find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=0.1, overlap=0.85):
+def img_find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=0.1, overlap=0.85):
     """
     This uses Laplacian of Gaussians method to determine the number and size of particles in the image.
     :return:
@@ -199,8 +182,32 @@ def find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=0.1,
     return (particles)
 
 
+def apply_flatfield_correction(img_list, flatfield, darkfield):
+    for img in img_list:
+        img[1].apply_flatfield_correction(flatfield, darkfield)
 
-def apply_filter(img, func, *args, **kwargs):
-    assert callable(func)
-    return func(img, *args, **kwargs)
+def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
+    for img in img_list:
+        img[1].image_subtract_background(image_input=apply_to, backgroundSubtractor=backgroundSubtractor, bg_method=bg_method, bg_filepath=bg_filepath)
+
+
+def analyze_img_quality(img_list):
+    means = []
+    stds = []
+    snrs = []
+
+    for img in img_list:
+        img[1].calculate_stats()
+        means.append(img[1].stats.raw_mean.values)
+        stds.append(img[1].stats.raw_std.values)
+        snrs.append(img[1].stats.raw_snr.values)
+
+    mean = int(np.mean(means))
+    std = int(np.mean(stds))
+    snr = np.round(np.mean(snrs), 2)
+
+    return mean, std, snr
+
+
+
 

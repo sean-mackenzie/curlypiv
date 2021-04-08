@@ -9,18 +9,20 @@ from os.path import isfile, basename
 
 # Maths/Scientifics
 import numpy as np
+import numpy.ma as ma
 import pandas as pd
 
 # Image Processing
 import cv2 as cv
 import imutils
 from skimage import io
+from skimage.exposure import rescale_intensity
 from skimage import data, filters, measure, morphology
 
 # Curlypiv
 from curlypiv.CurlypivUtils import find_substring
 from curlypiv import CurlypivImageProcessing
-from curlypiv.CurlypivImageProcessing import resize, subtract_background, filter
+from curlypiv.CurlypivImageProcessing import img_resize, img_subtract_background, img_filter
 
 
 
@@ -74,7 +76,11 @@ class CurlypivFile(object):
 
     def load(self, path):
         img = io.imread(self._filepath, plugin='tifffile')
-        self._raw = img.copy()
+
+        if len(np.shape(img)) > 2:
+            print('ha')
+
+        self._raw = img
 
     def _update_processing_stats(self, names, values):
         if not isinstance(names, list):
@@ -90,11 +96,11 @@ class CurlypivFile(object):
         else:
             self._processing_stats = new_stats.combine_first(self._processing_stats)
 
-    def image_resize(self, method='rescale', scale=2):
+    def image_resize(self, resizespecs=None):
 
         if self._original is None: self._original = self._raw.copy()
 
-        self._raw = resize(self._raw, method=method, scale=scale)
+        self._raw = img_resize(self._raw, method=resizespecs['method'], scale=resizespecs['scale'])
 
     def image_crop(self, cropspecs):
         """
@@ -120,7 +126,7 @@ class CurlypivFile(object):
             if self._original is None: self._original = self._raw.copy()
             self._raw = self._raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
 
-    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_filepath=None, bg_method="MOG2"):
+    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_filepath=None, bg_method="KNN"):
         """
         This subtracts a background input image from the signal input image.
         :param bg_method:
@@ -133,15 +139,16 @@ class CurlypivFile(object):
             raise ValueError("{} not a valid image for filtering. Use: {}".format(image_input, valid_images))
         elif image_input == 'raw':
             input = self._raw.copy()
+            input = rescale_intensity(input, in_range='image', out_range='uint16')
         elif image_input == 'filtered':
             if self._filtered is None:
                 ValueError("This file has no filtered image")
             input = self._filtered.copy()
 
-        (self._bg, self._bgs, self._mask, self._masked) = subtract_background(input,
-                                                                              backgroundSubtractor=backgroundSubtractor,
-                                                                              bg_filepath=bg_filepath,
-                                                                              bg_method=bg_method)
+        (self._bg, self._bgs, self._mask, self._masked) = img_subtract_background(input,
+                                                                                  backgroundSubtractor=backgroundSubtractor,
+                                                                                  bg_filepath=bg_filepath,
+                                                                                  bg_method=bg_method)
 
     def image_filter(self, filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True):
         """
@@ -190,7 +197,7 @@ class CurlypivFile(object):
             ValueError("A matching image input from {} was not found".format(valid_images))
 
         # perform filtering
-        output = filter(input, filterspecs=filterspecs)
+        output = img_filter(input, filterspecs=filterspecs)
 
         if force_rawdtype and output.dtype != raw_dtype:
             output = output.astype(raw_dtype)
@@ -226,6 +233,20 @@ class CurlypivFile(object):
         self.v_std = np.round(np.std(v),2)
         self.M_std = np.round(np.std(M),2)
 
+    def apply_flatfield_correction(self, flatfield, darkfield):
+
+        if self._original is None:
+            self._original = self._raw
+
+        vmin, vmax = np.percentile(self._raw, (0, 100))
+
+        img_corrected = (self._raw - darkfield) * (flatfield - darkfield) / (flatfield - darkfield)
+
+        img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
+
+        self._raw = img_corrected
+
+
     def calculate_stats(self):
         """
         This calculates some basic image statistics and updates the processing stats
@@ -233,6 +254,18 @@ class CurlypivFile(object):
         """
         raw_mean = self._raw.mean()
         raw_std = self._raw.std()
+
+        # calculate approximate signal to noise ratio
+        # background and signal values
+        bkg, sig = np.percentile(self._raw, (90, 99))
+        # masks
+        bkg_mask = self._raw < bkg
+        sig_mask = self._raw > sig
+        # mask the raw image
+        ma_bkg = ma.masked_array(self._raw, mask=bkg_mask)
+        ma_sig = ma.masked_array(self._raw, mask=sig_mask)
+        # compute the approximate signal to noise ratio
+        raw_snr = ma_sig.mean() / ma_bkg.std()
 
         if self._filtered is not None:
             # pixel intensities
@@ -242,8 +275,9 @@ class CurlypivFile(object):
             filt_mean = None
             filt_std = None
 
-        self._update_processing_stats(['raw_mean','raw_std','filt_mean','filt_std'],
-                                      [raw_mean, raw_std, filt_mean, filt_std])
+        self._update_processing_stats(['raw_mean','raw_std','raw_snr', 'filt_mean','filt_std'],
+                                      [raw_mean, raw_std, raw_snr, filt_mean, filt_std])
+
 
     def identify_particles(self, min_size=None, max_size=None, shape_tol=0.1, overlap_threshold=0.3):
 
@@ -289,7 +323,6 @@ class CurlypivFile(object):
                     continue
 
 
-
     def image_find_particles(self, image_input='filtered', min_sigma=0.5, max_sigma=5,num_sigma=20, threshold=0.1,overlap=0.85):
         """
         This uses Laplacian of Gaussians method to determine the number and size of particles in the image.
@@ -322,8 +355,8 @@ class CurlypivFile(object):
             ValueError("A matching image input from {} was not found".format(valid_images))
 
         # particle identification
-        particles = CurlypivImageProcessing.find_particles(img=input,min_sigma=min_sigma, max_sigma=max_sigma,
-                                                           num_sigma=num_sigma, threshold=threshold, overlap=overlap)
+        particles = CurlypivImageProcessing.img_find_particles(img=input, min_sigma=min_sigma, max_sigma=max_sigma,
+                                                               num_sigma=num_sigma, threshold=threshold, overlap=overlap)
 
         # stats
         num_particles = len(particles)

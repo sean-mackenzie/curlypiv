@@ -7,6 +7,7 @@ Notes about program
 # data I/O
 import sys
 import os
+from os.path import join
 import glob
 import re
 
@@ -41,47 +42,60 @@ import cycler
 
 
 
-def measureIlluminationDistributionXY(illumPath, num_images=50, show_image=False, save_image=False, save_img_type='.tif',
+def measureIlluminationDistributionXY(basePath=None, illumPath=None, show_image=False, save_image=False, save_img_type='.tif',
                                       save_txt=False, show_plot=False, save_plot=False, savePath=None, savename=None):
 
+    if basePath is not None:
+        illumPath = join(basePath, 'setup/calibration/illumination')
+        savePath = join(basePath, 'setup/calibration/results')
+    elif illumPath is None:
+        raise ValueError("Most input either a base path with proper data structure or illumination file path")
+    if savename is None:
+        savename = 'measureFlatField'
+
     # step 0 - initialize
-    particle_diameter_pixels_estimate = 6
-    n_gaussians = 12
-    sigma_multiplier = 4
+    particle_diameter_pixels_estimate = 20
+    n_gaussians = 5
+    sigma_multiplier = 8
     cmap_orig = 'gray'
     cmap_smooth = 'cool'
     fontsize = 18
 
     # step 1 - get image list
+    img_list = glob.glob(illumPath + '/*.tif')
+    num_images = len(img_list)
+
+    # step 2 - read image or image collection
     if num_images > 1:
-        img_list = glob.glob(illumPath+'/*.tif')
         img = io.imread_collection(load_pattern=img_list, conserve_memory=False, plugin='tifffile')
         img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
-
-        if len(img_list) != num_images:
-            num_iXY_images = len(img_list)
-        else:
-            num_iXY_images = num_images
-    elif num_images == 0:
+    elif num_images == 1:
         img = io.imread(illumPath, plugin='tifffile')
         if img is None:
             raise ValueError("if num_images==1, then illumPath must be the direct image file path")
-        num_iXY_images = 1
     else:
         raise ValueError("No images were found.")
 
     img_orig = img.copy()
+    vmin_orig, vmax_orig = np.percentile(img_orig, (0, 100))
 
     # step 2 - smooth out most features in image
     img_small_bright = white_tophat(img, selem=disk(particle_diameter_pixels_estimate))
     img = img - img_small_bright
     img_particles_removed = img.copy()
     for i in range(n_gaussians):
-        img = gaussian(img, sigma=i*sigma_multiplier)
+        img = gaussian(img, sigma=i*sigma_multiplier, mode='nearest')
 
     # step 4 - normalize to 1
     vmin, vmax = np.percentile(img, (0.05, 99.95))
     img = rescale_intensity(img, in_range=(0, vmax), out_range='dtype')
+
+    # calculate flatfield correction
+    img_flatfield_correction = 1 / img
+
+    # flatfield correction original image
+    img_orig_flatfield_corrected = img_orig * img_flatfield_correction
+    img_orig_flatfield_corrected = rescale_intensity(img_orig_flatfield_corrected, in_range='image', out_range='uint16')
 
     # save text
     if save_txt:
@@ -90,21 +104,27 @@ def measureIlluminationDistributionXY(illumPath, num_images=50, show_image=False
     if save_image:
         img_save = rescale_intensity(img, in_range='image', out_range='uint16')
         io.imsave(fname=savePath+'/'+savename+save_img_type, arr=img_save, plugin='tifffile')
+        io.imsave(fname=savePath+'/'+'measureFlatFieldCorrection'+save_img_type, arr=img_flatfield_correction, plugin='tifffile')
     if show_image:
         io.imshow(img)
 
     # step 3 - plot images
-    fig, axes = plt.subplots(ncols=3, figsize=(15,5), sharey=True, tight_layout=True)
+    fig, axes = plt.subplots(ncols=2, nrows=2, figsize=(11,10), sharex=True, sharey=True, tight_layout=True)
     ax = axes.ravel()
 
     ax[0].imshow(img_orig, cmap=cmap_orig)
-    ax[0].set_title('Mean of {} raw images'.format(num_iXY_images), fontsize=fontsize)
+    ax[0].set_title('Mean of {} raw images'.format(num_images), fontsize=fontsize)
 
     ax[1].imshow(img_particles_removed, cmap=cmap_smooth)
     ax[1].set_title(r'$p_{diameter}<$'+'{} pixels removed'.format(particle_diameter_pixels_estimate), fontsize=fontsize)
 
-    ax[2].imshow(img, cmap=cmap_smooth)
-    ax[2].set_title('Smoothed: {} Gaussians, {} * sigma'.format(n_gaussians, sigma_multiplier), fontsize=fontsize)
+    ax[2].imshow(img_orig_flatfield_corrected, cmap=cmap_orig)
+    ax[2].set_title('Flatfield corrected', fontsize=fontsize)
+
+    ax[3].imshow(img, cmap=cmap_smooth)
+    ax[3].set_title('Smoothed: {} Gaussians, {} * sigma'.format(n_gaussians, sigma_multiplier), fontsize=fontsize)
+
+    plt.suptitle('Evaluation of Illumination Distribution')
 
     if save_plot:
         plt.savefig(fname=savePath+'/'+savename+'_image'+'.jpg')
@@ -139,6 +159,7 @@ def measureIlluminationDistributionXY(illumPath, num_images=50, show_image=False
         ax[0].set_ylabel('Normalized intensity')
 
     plt.legend(bbox_to_anchor=(1.04,1), loc="upper left")
+    plt.suptitle('Pixel Row/Column Intensity Profiles')
     plt.tight_layout()
 
     if save_plot:
@@ -149,7 +170,9 @@ def measureIlluminationDistributionXY(illumPath, num_images=50, show_image=False
 
     plt.close('all')
 
-    return img
+    img = np.asarray(np.rint(rescale_intensity(img, in_range='image', out_range=(vmin_orig, vmax_orig))), dtype='uint16')
+
+    return img, img_flatfield_correction
 
 
 def particle_illumination_distribution(x, y, z=None,
@@ -234,7 +257,7 @@ def calculate_distribution_of_correlation(depth_of_corr, plot_weight=False):
     if plot_weight is True:
         plot_distribution_of_correlation()
 
-    return z_weight
+    return z_weight, z_corr_space
 
 def calculate_particle_correlation(z, z_focal, depth_of_corr):
 
@@ -247,10 +270,9 @@ def calculate_particle_correlation(z, z_focal, depth_of_corr):
 
     return c_z_corr
 
-def plot_distribution_of_correlation():
+def plot_distribution_of_correlation(z_corr_space, z_weight, focal_z=0, fullz=20e-6):
     fig, ax = plt.subplots()
 
-    """
     # plot weighting function
     ax.scatter(z_corr_space, z_weight, s=5)
     ax.plot(z_corr_space, z_weight, alpha=0.25, linewidth=2)
@@ -270,4 +292,103 @@ def plot_distribution_of_correlation():
     plt.legend()
 
     plt.show()
-    """
+
+def plot_field_depth(depth_of_corr, depth_of_field=None, show_depth_plot=False, save_depth_plot=False, basePath=None, savename=None,
+                     channel_height=None, objective=None):
+
+    z_weight, z_space = calculate_distribution_of_correlation(depth_of_corr, plot_weight=False)
+
+    if show_depth_plot or save_depth_plot:
+
+        fig, ax = plt.subplots(figsize=(10,4))
+
+        # plot focal plane
+        plt.vlines(x=0, ymin=0, ymax=100, colors='r', linestyles='dashed', alpha=0.75, label='Focal Plane')
+
+        # plot weighting function
+        ax.plot(z_space * 1e6, z_weight*100, color='blue', alpha=1, linewidth=2, label='Depth of Correlation')
+
+        # plot depth of field
+        plt.vlines(x=-depth_of_field/2 * 1e6, ymin=0, ymax=100, colors='lightblue', linewidth=2, linestyles='solid', alpha=0.9, label='Depth of Field')
+        plt.vlines(x=depth_of_field/2 * 1e6, ymin=0, ymax=100, colors='lightblue', linewidth=2, linestyles='solid', alpha=0.9)
+
+        # plot channel walls
+        plt.vlines(x=-channel_height/2 * 1e6, ymin=0, ymax=100, colors='gray', linewidth=2, linestyles='solid', alpha=0.5, label='Channel walls')
+        plt.vlines(x=channel_height/2 * 1e6, ymin=0, ymax=100, colors='gray', linewidth=2, linestyles='solid', alpha=0.5)
+
+        # figure setup
+        plt.title('Interrogation Volume for {}X Objective'.format(objective))
+        ax.set_xlabel('z (um)')
+        ax.set_ylabel('% Correlation')
+        plt.legend()    # bbox_to_anchor=(1.04,1), loc="upper left"
+        plt.tight_layout()
+
+        if save_depth_plot:
+            if savename is None:
+                savename = 'measure{}XObjectiveInterrogationVolume'.format(objective)
+            plt.savefig(join(basePath,'setup/calibration/results', savename+'.jpg'))
+
+        if show_depth_plot:
+            plt.show()
+
+def calculate_darkfield(basePath=None, darkframePath=None, show_image=False, save_image=False, save_img_type='.tif',
+                                      savePath=None, savename=None, save_plot=False):
+
+    if basePath is not None:
+        darkframePath = join(basePath, 'setup/calibration/cameraNoise/darkfield')
+        savePath = join(basePath, 'setup/calibration/results')
+    elif darkframePath is None:
+        raise ValueError("Most input either a base path with proper data structure or dark frame file path")
+    if savename is None:
+        savename = 'measureDarkField'
+
+    # step 1 - get image list
+    img_list = glob.glob(darkframePath + '/*.tif')
+    num_images = len(img_list)
+
+    if num_images > 1:
+        img = io.imread_collection(load_pattern=img_list, conserve_memory=False, plugin='tifffile')
+        img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
+
+    elif num_images == 1:
+        img = io.imread(img_list[0], plugin='tifffile')
+
+        if len(np.shape(img)) > 2:
+            img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
+
+    else:
+        raise ValueError("No images were found.")
+
+
+    # measure image mean and std
+    darkfield_mean = np.round(np.mean(img),1)
+    darkfield_std = np.round(np.std(img),2)
+
+    # save image
+    if save_image:
+        io.imsave(join(savePath, savename+save_img_type), img, plugin='tifffile', check_contrast=False)
+
+    # save or show image
+    if save_plot or show_image:
+        fig, ax = plt.subplots()
+        ax.imshow(img, cmap='gray')
+        ax.set_title('Dark field: Mean={}, Std={}'.format(darkfield_mean, darkfield_std))
+
+        if save_plot:
+            plt.savefig(join(savePath, savename+'.jpg'))
+
+        if show_image:
+            plt.show()
+
+    return img, darkfield_mean, darkfield_std
+
+
+
+
+
+
+
+
+
+
+

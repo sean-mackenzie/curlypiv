@@ -68,9 +68,9 @@ else:
     u_xyz = u_xyz_pdf + u_xyz_slip + u_xyz_ep
 
 # step 2 - plot flow profile in 2D
-plot_flowProfile_2D(u_xyz, show_plot=False, save_plot=False, savePath=None, saveName=None, saveType='.jpg',
+plot_flowProfile_2D(u_xyz, show_plot=True, save_plot=False, savePath=None, saveName=None, saveType='.jpg',
                         cmap='viridis', interp='bilinear')
 
 # step 2 - plot flow profile in 2D
-plot_flowProfile_3D(u_xyz, show_plot=True, save_plot=False, savePath=None, saveName=None, saveType='.jpg',
+plot_flowProfile_3D(u_xyz, show_plot=False, save_plot=False, savePath=None, saveName=None, saveType='.jpg',
                         cmap='viridis')

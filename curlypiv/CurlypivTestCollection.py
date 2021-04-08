@@ -22,10 +22,12 @@ import pandas as pd
 
 # Image Processing
 from skimage import io
+import cv2 as cv
 
 # Curlypiv
 from curlypiv.CurlypivFile import CurlypivFile
 from curlypiv.CurlypivUtils import find_substring
+from curlypiv.CurlypivImageProcessing import analyze_img_quality, apply_flatfield_correction, apply_background_subtractor
 
 
 # 2.0 define class
@@ -37,7 +39,9 @@ class CurlypivTestCollection(object):
                  backgroundsub_specs=None, processing_specs=None, thresholding_specs=None, cropping_specs=None,
                  dir_tests='tests',dir_bg='background',dir_results='results',
                  locid = 'loc', testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 exclude=[]):
+                 load_files=False, exclude=[],
+                 calibration_grid_path=None, calibration_illum_path=None, calibration_camnoise_path=None,
+                 ):
         super(CurlypivTestCollection, self).__init__()
         if not isdir(dirpath):
             raise ValueError("Specified folder {} does not exist".format(dirpath))
@@ -45,7 +49,7 @@ class CurlypivTestCollection(object):
         self._collectionName = collectionName
         self.dirpath = dirpath
         self.dir_tests = dir_tests
-        self._path = join(self.dirpath,self.dir_tests)
+        self._path = join(self.dirpath, self.dir_tests)
         self.dir_bg = dir_bg
         self.dir_results = dir_results
 
@@ -56,6 +60,8 @@ class CurlypivTestCollection(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.load_files = load_files
+
         self._find_locs(exclude=exclude)
         self._add_locs()
         self._get_size()
@@ -63,6 +69,15 @@ class CurlypivTestCollection(object):
         self.processing_specs = processing_specs
         self.thresholding_specs = thresholding_specs
         self.cropping_specs = cropping_specs
+
+        # data structure dependent files
+        if calibration_grid_path is None:
+            self.grid_path = join(self.dirpath, 'setup/calibration/microgrid')
+        if calibration_illum_path is None:
+            self.illum_path = join(self.dirpath, 'setup/calibration/illumination')
+        if calibration_camnoise_path is None:
+            self.camnoise_path = join(self.dirpath, 'setup/calibration/cameraNoise')
+
 
     def __len__(self):
         return self._size
@@ -104,7 +119,8 @@ class CurlypivTestCollection(object):
         locs = OrderedDict()
         for lc in [l for l in self.loclist if l.startswith(self.locid)]:
             loc = CurlypivLocation(join(self.path,lc), file_type=self.file_type,
-                                testid=self.testid,runid=self.runid,seqid=self.seqid,frameid=self.frameid)
+                                testid=self.testid,runid=self.runid,seqid=self.seqid,frameid=self.frameid,
+                                   load_files=self.load_files)
             locs.update({loc._locname: loc})
             logger.warning('Loaded loc{}'.format(loc._locname))
 
@@ -114,6 +130,16 @@ class CurlypivTestCollection(object):
 
     #def get_files(self, loc=None, test=None, run=None, sequence=None, file=None):
         # method to retrieve all files in the specified container
+
+    def add_img_testset(self, loc, test, run, seq, level='seq'):
+        lev = self
+        if level == 'seq':
+            levels = [loc, test, run, seq]
+        for l in levels:
+            lev = lev.get_sublevel(l)
+
+        self.img_testset = lev
+
 
     def filter_images(self):
         for image in self.tests.values():
@@ -165,7 +191,7 @@ class CurlypivLocation(object):
 
     def __init__(self, dirpath, file_type,
                  locid = 'loc', testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 exclude=[]):
+                 load_files=False, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -174,6 +200,8 @@ class CurlypivLocation(object):
         self.runid = runid
         self.seqid = seqid
         self.frameid = frameid
+
+        self.load_files = load_files
 
         self._locname = find_substring(string=self.dirpath, leadingstring=self.locid, dtype=int)[0]
 
@@ -225,7 +253,8 @@ class CurlypivLocation(object):
         tests = OrderedDict()
         for tst in [t for t in self.test_list if t.endswith(self.testid[1])]:
             test = CurlypivTest(join(self.dirpath,tst), file_type=self.file_type,
-                                testid=self.testid,runid=self.runid,seqid=self.seqid,frameid=self.frameid)
+                                testid=self.testid,runid=self.runid,seqid=self.seqid,frameid=self.frameid,
+                                load_files=self.load_files)
             tests.update({test._testname: test})
             logger.warning('Loaded test {}'.format(test._testname))
 
@@ -280,7 +309,7 @@ class CurlypivTest(object):
 
     def __init__(self, dirpath, file_type,
                  testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 exclude=[]):
+                 load_files=False, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -288,6 +317,8 @@ class CurlypivTest(object):
         self.runid = runid
         self.seqid = seqid
         self.frameid = frameid
+
+        self.load_files = load_files
 
         self._testname = find_substring(string=self.dirpath, leadingstring=self.testid[0], trailingstring=self.testid[1],
                                        dtype=float)[0]
@@ -342,7 +373,8 @@ class CurlypivTest(object):
         runs = OrderedDict()
         for f in self.run_list:
             file = CurlypivRun(join(self.dirpath,f), file_type=self.file_type,
-                               runid = self.runid, seqid = self.seqid, frameid = self.frameid)
+                               runid = self.runid, seqid = self.seqid, frameid = self.frameid,
+                               load_files=self.load_files)
             runs.update({file._runname: file})
             logger.warning('Loaded run {}'.format(file._runname))
 
@@ -416,7 +448,7 @@ class CurlypivRun(object):
 
     def __init__(self, dirpath, file_type,
                  runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 exclude=[]):
+                 load_files=False, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -424,12 +456,21 @@ class CurlypivRun(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.load_files = load_files
+
         self._runname = find_substring(string=self.dirpath, leadingstring=self.runid[0], trailingstring=self.runid[1],
                                        dtype=int)[0]
 
+        # first loop through file list to expand any stacked files
         self._find_filepaths()
         self._find_seqpaths()
         self._add_seqs()
+        logger.warning("First loop through file list complete")
+        # second loop through file list to reorganize file list
+        self._find_filepaths()
+        self._find_seqpaths()
+        self._add_seqs()
+        logger.warning("Second loop through file list complete")
         self._get_size()
 
     def __len__(self):
@@ -457,7 +498,7 @@ class CurlypivRun(object):
         all_files = listdir(self.dirpath)
         save_files = []
         for file in [f for f in all_files if f.endswith(self.file_type)]:
-            if file in exclude:
+            if file in exclude or file.startswith('multifile'):
                 continue
             save_files.append(file)
 
@@ -499,7 +540,8 @@ class CurlypivRun(object):
         seqs = OrderedDict()
         for s in self._seqpaths:
             seq = CurlypivSequence(self.dirpath,file_type=self.file_type, seqname=s[0],
-                                   filelist=s[1],frameid = '_X')
+                                   filelist=s[1], seqid=self.seqid, frameid = self.frameid, load_files=self.load_files)
+
             seqs.update({seq._seqname: seq})
             logger.warning('Loaded sequence {}'.format(seq._seqname))
         self.seqs = seqs
@@ -512,6 +554,10 @@ class CurlypivRun(object):
             files.update({file.filename: file})
             logger.warning('Loaded image {}'.format(file.filename))
         self.files = files
+
+    def update_run_filelist(self):
+        print('yah')
+
 
     def _get_size(self):
         self._size = len(self.filepaths)
@@ -557,9 +603,6 @@ class CurlypivRun(object):
         self.u_mean = np.round(np.mean(u_mean), 1)
         self.v_mean = np.round(np.mean(v_mean), 1)
 
-
-
-
     @property
     def name(self):
         return self._runname
@@ -577,16 +620,19 @@ class CurlypivRun(object):
 class CurlypivSequence(object):
 
     def __init__(self, dirpath, file_type, seqname, filelist,
-                 load_files=False, frameid = '_X',
-                 exclude=[]):
+                 load_files=False, seqid = ('test_', '_X'), frameid = '_X',
+                 file_lim=200, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
+        self.seqid = seqid
         self.frameid = frameid
         self._seqname = seqname
-        self.file_list = filelist
-        self.get_size()
+        self.file_lim = file_lim
 
+        self.file_list = filelist
+        self.check_for_multifiles()
+        self.get_size()
         self.add_files(load_files)
 
     def __repr__(self):
@@ -594,13 +640,46 @@ class CurlypivSequence(object):
         repr_dict = {'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
                      'Sequence identifier': self._seqname,
+                     'Sequence ID': self.seqid,
+                     'Frame ID': self.frameid,
                      'Number of files': self._size}
         out_str = "{}: \n".format(class_)
         for key, val in repr_dict.items():
             out_str += '{}: {} \n'.format(key, str(val))
         return out_str
 
-    def add_files(self, load_file, file_lim=250):
+    def check_for_multifiles(self):
+        for f in self.file_list:
+
+            img = io.imread(join(self.dirpath,f), plugin='tifffile')
+
+            multifile_num = 0
+            if len(np.shape(img)) > 2:
+                shape = np.shape(img)
+                os.rename(join(self.dirpath,f),join(self.dirpath,'multifile_'+str(multifile_num)+self.file_type))
+                multifile_num += 1
+
+                imgs_in_stack = np.shape(img)[0]
+                max_imgs = self.file_lim
+                if imgs_in_stack > max_imgs:
+                    logger.warning("{} images in stack. Keeping only {} for now.".format(imgs_in_stack, max_imgs))
+                    imgs_in_stack = max_imgs
+
+                img_num = 1
+                for i in range(imgs_in_stack):
+                    img_sub = img[i,:,:]
+                    io.imsave(join(self.dirpath,self.seqid[0]+str(self._seqname)+self.seqid[1]+str(img_num)+self.file_type),
+                              img_sub, plugin='tifffile', check_contrast=False)
+                    img_num += 1
+
+
+    def add_files(self, load_file, file_lim=None):
+
+        if file_lim is not None:
+            file_limit = file_lim
+        else:
+            file_limit = self.file_lim
+
         files = OrderedDict()
         if load_file:
             file_num = 0
@@ -608,8 +687,9 @@ class CurlypivSequence(object):
                 file = CurlypivFile(join(self.dirpath,f), img_type=self.file_type)
                 files.update({file.filename: file})
 
-                if file_num == file_lim:
+                if file_num == file_limit:
                     logger.warning("Added the maximum number of files to sequence")
+                    continue
 
                 file_num += 1
 
@@ -619,8 +699,21 @@ class CurlypivSequence(object):
         if len(self.files) < 1:
             self.add_files(load_file=True)
 
-    def get_size(self):
-        self._size = len(self.file_list)
+    def get_subset(self, num_files):
+
+        # update file limit
+        self.file_lim = num_files
+
+        # get full file collection
+        full_set = self.files.items()
+
+        # get subset from 0 to file_lim by index
+        subset = list(full_set)[:self.file_lim]
+
+        # update sequence properties
+        self.files = subset
+        self.file_list = self.file_list[:self.file_lim]
+        self.get_size()
 
     def get_sublevel(self, key):
 
@@ -647,14 +740,82 @@ class CurlypivSequence(object):
 
         return all_subs
 
-    def add_piv_data(self, u_mag_mean=None, u_mag_std=None, u_mean=None, v_mean=None, u_mag_bkg=None):
+    def get_size(self):
+        self._size = len(self.file_list)
 
+    # ----- ----- image processing functions below ----- -----
+
+    def get_img_quality(self):
+        self.raw_mean, self.raw_std, self.raw_snr = analyze_img_quality(self.files)
+
+    def calc_seq_mean_file(self):
+        means = np.zeros_like(self.first_file.raw)
+        for f in self.files:
+            means += f.raw
+        mean = np.divide(means, len(self.files))
+        return mean
+
+    def apply_flatfield_correction(self, flatfield, darkfield):
+        apply_flatfield_correction(self.files, flatfield, darkfield)
+
+    def apply_image_processing(self, cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None):
+        for img in self.files:
+            img[1].image_crop(cropspecs=cropspecs)          # crop
+            img[1].image_resize(resizespecs=resizespecs)    # resize
+            img[1].image_filter(filterspecs=filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
+
+
+    def apply_background_subtractor(self, bg_method='KNN', apply_to='raw'):
+        if bg_method == 'KNN':
+            backSub = cv.createBackgroundSubtractorKNN(detectShadows=False)
+        elif bg_method == "MOG2":
+            backSub = cv.createBackgroundSubtractorMOG2(detectShadows=False)
+
+        apply_background_subtractor(self.files, backgroundSubtractor=backSub, bg_method=bg_method, apply_to=apply_to, bg_filepath=None)
+
+    def animate_background_subtractor(self, img='bgs', start=0, stop=200, savePath=None):
+        valid_imgs = ['bg', 'bgs', 'filtered', 'mask', 'masked', 'original', 'raw']
+        if img not in valid_imgs:
+            raise ValueError("Animation image must be one of {}".format(valid_imgs))
+
+        counter = start
+        if stop > len(self.files):
+            stop = len(self.files)
+
+        while counter < stop:
+            if img == 'bg':
+                frame = self.files[counter][1].bg
+            elif img == 'bgs':
+                frame = self.files[counter][1].bgs
+            elif img == 'filtered':
+                frame = self.files[counter][1].filtered
+            elif img == 'masked':
+                frame = self.files[counter][1].masked
+            elif img == 'original':
+                frame = self.files[counter][1].original
+            elif img == 'raw':
+                frame = self.files[counter][1].raw
+
+
+            if savePath and counter > (stop - start) / 2:
+                cv.imwrite(savePath + '/{}_'.format(img) + self.files[counter][1].filename, frame)
+
+            cv.imshow('Background subtracted image', frame)
+            counter += 1
+            keyboard = cv.waitKey(80)
+            if keyboard == 'q' or keyboard == 27:
+                break
+        cv.destroyAllWindows()
+
+    def add_piv_data(self, u_mag_mean=None, u_mag_std=None, u_mean=None, v_mean=None, u_mag_bkg=None):
         self.u_mag_mean = np.mean(u_mag_mean)
         self.u_mag_std = np.mean(u_mag_std)
         self.u_mean = np.mean(u_mean)
         self.v_mean = np.mean(v_mean)
         if u_mag_bkg is not None:
             self.u_mag_bkg = np.mean(u_mag_bkg)
+
+    # ----- ----- deleting files and removing data functions below ----- -----
 
     def remove_files(self, file='all'):
         # code for removing a single file
@@ -664,8 +825,6 @@ class CurlypivSequence(object):
             files = OrderedDict()
 
         self.files = files
-
-
 
 
     @property
@@ -679,3 +838,11 @@ class CurlypivSequence(object):
     @property
     def size(self):
         return self._size
+
+    @property
+    def first_file(self):
+        return self.files[0][1]
+
+    @property
+    def mean_file(self):
+        return self.calc_seq_mean_file()

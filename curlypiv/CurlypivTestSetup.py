@@ -6,7 +6,10 @@ Notes about program
 # 1.0 import modules
 import numpy as np
 from skimage import io
-from curlypiv.utils.calibrateCamera import measureIlluminationDistributionXY, calculate_depth_of_correlation
+import glob
+from os.path import join
+import matplotlib.pyplot as plt
+from curlypiv.utils.calibrateCamera import measureIlluminationDistributionXY, calculate_depth_of_correlation, calculate_darkfield, plot_field_depth
 
 # 2.0 define class
 
@@ -105,7 +108,7 @@ class channel(object):
 
 class bpe(object):
 
-    def __init__(self, length=None, width=None, height=None, material=None):
+    def __init__(self, length=None, width=None, height=None, material=None, adhesion_material=None):
         """
         Everything important about the chip
         """
@@ -113,25 +116,27 @@ class bpe(object):
         self.width = width
         self.height = height
         self.material = material
+        self.adhesion_material = adhesion_material
 
 class optics(object):
-    def __init__(self, microscope, illumination, fluorescent_particles=None, pixel_to_micron_scaling=None):
+    def __init__(self, microscope, fluorescent_particles=None, calibration_grid=None, pixel_to_micron_scaling=None):
+
         self.microscope = microscope
-        self.illumination = illumination
         self.fluorescent_particles = fluorescent_particles
+        self.calibration_grid = calibration_grid
 
         if microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is None:
             self.pixel_to_micron = microscope.objective.pixel_to_micron
-        elif microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is not None:
+        elif microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is not None and microscope.objective.pixel_to_micron != pixel_to_micron_scaling:
             raise ValueError("Conflicting scaling factors: microscope.objective={}, optics={}".format(microscope.objective.pixel_to_micron, pixel_to_micron_scaling))
         elif microscope.objective.pixel_to_micron is None and pixel_to_micron_scaling is not None:
             self.pixel_to_micron = pixel_to_micron_scaling
 
 class illumination(object):
 
-    def __init__(self, source=None, excitation=None, emission=None, dichroic=None, illumination_distribution=None,
+    def __init__(self, basePath=None, source=None, excitation=None, emission=None, dichroic=None, illumination_distribution=None,
                  calculate_illumination_distribution=False,
-                 illumPath=None, illumSavePath=None, illumSaveName=None, showIllumPlot=False):
+                 illumPath=None, illumSavePath=None, illumSaveName=None, showIllumPlot=False, save_txt=False, save_plot=False, save_image=False):
         """
         details about the optical setup
         :param source:
@@ -139,23 +144,46 @@ class illumination(object):
         :param emission:
         :param dichroic:
         """
+        self.basePath = basePath    # this should come from CurlypivTestCollection
         self.source=source
         self.excitation_wavelength=excitation
         self.emission_wavelength=emission
         self.dichroic=dichroic
+
         if illumination_distribution is not None:
             if isinstance(illumination_distribution, str):
                 self.illumination_distribution = io.imread(illumination_distribution, plugin='tifffile')
             else:
                 self.illumination_distribution = illumination_distribution
         elif calculate_illumination_distribution and illumination_distribution is None:
-            self.illumination_distribution = measureIlluminationDistributionXY(illumPath=illumPath, num_images=50,
-                                                                           show_image=showIllumPlot, save_image=False, save_img_type='.tif',
-                                                                        save_txt=False, show_plot=showIllumPlot, save_plot=False,
+            self.illumination_distribution = measureIlluminationDistributionXY(basePath=self.basePath, illumPath=illumPath,
+                                                                           show_image=showIllumPlot, save_image=save_image, save_img_type='.tif',
+                                                                        save_txt=save_txt, show_plot=showIllumPlot, save_plot=save_plot,
                                                                         savePath=illumSavePath, savename=illumSaveName)
         else:
             self.illumination_distribution = illumination_distribution
 
+        self.flatfield = self.illumination_distribution[0]
+        self.flatfield_mean = np.mean(self.flatfield)
+        self.flatfield_std = np.std(self.flatfield)
+        self.flatfield_correction = self.illumination_distribution[1]
+
+class darkfield(object):
+
+    def __init__(self, basePath,  darkframePath=None, show_image=False, save_image=False, save_img_type='.tif',
+                                      savePath=None, savename=None, save_plot=False):
+        """
+        details about dark field image
+
+        """
+        self.basePath = basePath
+
+        img, mean, std = calculate_darkfield(self.basePath, darkframePath=darkframePath, show_image=show_image, save_image=save_image, save_img_type=save_img_type,
+                                      savePath=savePath, savename=savename, save_plot=save_plot)
+
+        self.img = img
+        self.mean = mean
+        self.std = std
 
 class microscope(object):
 
@@ -172,7 +200,7 @@ class microscope(object):
 
 class ccd(object):
 
-    def __init__(self, exposure_time, img_acq_rate, EM_gain, binning=None,
+    def __init__(self, exposure_time, img_acq_rate, EM_gain, darkfield=None, binning=None,
                  vertical_pixel_shift_speed=0.5e-6, horizontal_pixel_shift_speed=0.1e-6, horizontal_pixel_shift_rate_bits=14,
                  frame_transfer=True, crop_mode=False, acquisition_mode='kinetic', triggering='internal', readout_mode='image',
                  pixels=512, pixel_size=16e-6):
@@ -182,6 +210,7 @@ class ccd(object):
         self.exposure_time = exposure_time
         self.img_acq_rate = img_acq_rate
         self.em_gain = EM_gain
+        self.darkfield = darkfield
         self.binning = binning
 
         # supporting camera acquisition settings
@@ -204,7 +233,8 @@ class ccd(object):
 
 class objective(object):
 
-    def __init__(self, numerical_aperture, magnification, fluoro_particle, illumination=None, wavelength=None, microgrid=None, auto_calc_pix_to_micron_scaling=False, pixel_to_micron=None, field_number=None, n0=1):
+    def __init__(self, numerical_aperture, magnification, fluoro_particle, basePath=None, channel_height=None, illumination=None, wavelength=None, microgrid=None, auto_calc_pix_to_micron_scaling=False, pixel_to_micron=None, field_number=None, n0=1, show_depth_plot=False, save_depth_plot=False):
+
         self.numerical_aperture = numerical_aperture
         self.magnification = magnification
         self.field_number = field_number        # field number for 50X LCPLFLN50XLCD is 26.5 mm
@@ -222,6 +252,10 @@ class objective(object):
 
         if field_number:
             self.calculate_field_of_view()
+
+        if show_depth_plot or save_depth_plot:
+            plot_field_depth(depth_of_corr=self.depth_of_correlation, depth_of_field=self.depth_of_field, show_depth_plot=show_depth_plot, save_depth_plot=save_depth_plot,
+                                 basePath=basePath, savename=None, channel_height=channel_height, objective=magnification)
 
         # grids and scaling factors
         self.microgrid = microgrid
@@ -269,7 +303,7 @@ class objective(object):
 
 class microgrid(object):
 
-    def __init__(self, gridPath=None, center_to_center_spacing=None, feature_width=None, grid_type='grid'):
+    def __init__(self, gridPath=None, center_to_center_spacing=None, feature_width=None, grid_type='grid', show_grid=False):
         """
         this class holds images for the microgrid and performs pixel to micron scaling calculations
         """
@@ -277,6 +311,32 @@ class microgrid(object):
         self.spacing = center_to_center_spacing
         self.width = feature_width
         self.grid_type = grid_type
+
+        # find files in directory
+        file_list = glob.glob(join(self.gridPath, 'grid*.tif'))
+
+        if len(file_list) < 1:
+            raise ValueError("No grid*.tif files found in {}".format(self.gridPath))
+
+        img_grid = np.zeros(shape=(512,512))
+        for f in file_list:
+            img = io.imread(f, plugin='tifffile')
+            if len(np.shape(img)) > 2:
+                img = np.mean(img, axis=0)
+            img_grid += img
+
+        img_grid = img_grid / len(file_list)
+
+        self.img_grid = img_grid
+
+        if show_grid is True:
+            fig, ax = plt.subplots()
+            ax.imshow(img_grid, cmap='gray')
+
+            ax.set_xlabel('pixels')
+            ax.set_ylabel('pixels')
+            plt.title('grid: 10 um Lines; 50 um Spacing')
+            plt.show()
 
 
 class fluorescent_particles(object):

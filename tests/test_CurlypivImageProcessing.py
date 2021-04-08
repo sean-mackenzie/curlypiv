@@ -8,7 +8,7 @@ from os import listdir
 from os.path import join
 
 import curlypiv
-from curlypiv.CurlypivImageProcessing import resize, subtract_background
+from curlypiv.CurlypivImageProcessing import img_resize, img_subtract_background
 from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest, CurlypivTestCollection
 from curlypiv.CurlypivTestSetup import CurlypivTestSetup
 from curlypiv.CurlypivPIV import CurlypivPIV
@@ -39,4 +39,4 @@ img = piv.get_analysis_level(level=test_level,loc=1, test=2.5, run=1, seq=1, fil
 # ----- TEST IMAGE PROCESSING METHODS -----
 
 # resize
-img_resized = resize(img, method='rescale', scale=2)
+img_resized = img_resize(img, method='rescale', scale=2)

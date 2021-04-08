@@ -45,13 +45,15 @@ illumPath = '/Users/mackenzie/Desktop/03.18.21-ZuPIV_test/tests/loc1/E2.5Vmm/run
 illumXY = '/Users/mackenzie/Desktop/testSynthetics/save/illumXY/iXY.tif'
 illumSavePath = '/Users/mackenzie/Desktop/testSynthetics/save/illumXY'
 illumSaveName = 'iXY'
-showIllumPlot = False
+showIllumPlot = True
 
-showScatter = False
-showIntensityTrajectory = False
-saveTxt = True
+showScatter = True
+showIntensityTrajectory = True
+saveTxt = False
 onlyBrightParticles = True
 saveTxtPath = '/Users/mackenzie/PythonProjects/microsig/examples/example_sean/txt'
+
+generate_synthetic_images = False
 
 # --- initialize some necessities ---
 
@@ -85,22 +87,33 @@ bpe_iceo_chip = chip(channel=bpe_iceo_channel, material=sio2_chip, bpe=bpe_iceo_
 # test Setup Class
 testSetup = CurlypivTestSetup(name='bpe-iceo', chip=bpe_iceo_chip, optics=bpe_iceo_optics, fluid_handling_system=fhs)
 
+# synthetic collection image generator settings
+export_settings_file = False
+export_settings_path = '/Users/mackenzie/PythonProjects/microsig/examples/example_sean'
+export_settings_name = 'auto_settings.txt'
 
+# synthetic image generator settings
+use_gui = False
+setting_file = export_settings_path + '/' + export_settings_name
+destination_folder = '/Users/mackenzie/PythonProjects/microsig/examples/example_sean/images'
+use_internal_setting = False
+use_internal_data = False
+to_internal_sequence = False
+output_dtype = 'np.uint16'
+generate_synthetic_images = False
 
 # ----- test 0: CurlypivSyntheticCollection ------
 
 # step 1 - load the synthetic collection class
 synCol = CurlypivSyntheticCollection(testSetup=testSetup, imgSamplingPath=samplePath, imgIlluminationXYPath=samplePath,
-                                     num_images=50, img_type='.tif')
-# step 2 - compute image sampling stats
-synCol.sampleImage(p_bkg=90, p_sig=90)
+                                     num_images=50, img_type='.tif', export_settings_file=export_settings_file, export_settings_path=export_settings_path, export_settings_name=export_settings_name)
 
 # step 3 - initialize some parameters
-n_images = 25               # number of images
+n_images = 50               # number of images
 buffer_images = 4
 z_focal_plane = 4e-6        # height of focal plane
 z_resolution = 10           # Increase z-space resolution by 10X
-density = 50e-5              # 1
+density = 5e-5              # 1
 cmap='cool'
 num_plot_particles = 20     # number of particles to plot intensity trajectory
 
@@ -113,13 +126,19 @@ ep_mobility = 1
 U_mag = pdf + slip_far + slip_near + E*ep_mobility + 1
 fT = ['slip']          # 'slip', 'ep'
 
+# determine how large of a space to model
+if n_images * U_mag > 100:
+    x_domain_multiplier = 3
+else:
+    x_domain_multiplier = 2
+
 u_xyz = generate_flowProfile(testSetup=testSetup, z_resolution=z_resolution, Umax_pdf=pdf, slip_near=slip_near, slip_far=slip_far,
                                      ep_mobility=ep_mobility, E=E, flowType=fT, y_mod=1.0005, z_mod=10)
 
 # step 5 - generate random coordinates of particles in a domain
-x = synCol.microsigSetup['pixel_dim_x'] * 2         # give x-domain more space to accompany particle transport
-y = synCol.microsigSetup['pixel_dim_y']             # y-domain constrained by walls
-z = synCol.microsigSetup['pixel_dim_z']             # z-domain constrained by walls
+x = synCol.microsigSetup['pixel_dim_x'] * x_domain_multiplier       # give x-domain more space to accompany particle transport
+y = synCol.microsigSetup['pixel_dim_y']                             # y-domain constrained by walls
+z = synCol.microsigSetup['pixel_dim_z']                             # z-domain constrained by walls
 
 x_points = x + 1                                #
 y_points = y + 1                                #
@@ -281,6 +300,12 @@ for n in range(n_images + 1):
 if showScatter:
     plt.show()
 
+# generate synthetic images
+if generate_synthetic_images:
+    synCol.generate_synthetic_imageset(setting_file=setting_file, data_files=saveTxtPath, destination_folder=destination_folder,
+                                       use_gui=use_gui, output_dtype=output_dtype,
+                                       use_internal_setting=use_internal_setting, use_internal_data=use_internal_data,
+                                       to_internal_sequence=to_internal_sequence)
 
 # create dataframe
 dfc = pd.DataFrame(data=pid_c_int, index=None, columns=['pid', 'frame', 'c_int'])
@@ -313,6 +338,8 @@ if showIntensityTrajectory:
     plt.tight_layout()
 
     plt.show()
+
+print('stop')
 
 
 
