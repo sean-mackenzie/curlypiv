@@ -183,12 +183,12 @@ def img_find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=
 
 
 def apply_flatfield_correction(img_list, flatfield, darkfield):
-    for img in img_list:
-        img[1].apply_flatfield_correction(flatfield, darkfield)
+    for img in img_list.values():
+        img.apply_flatfield_correction(flatfield, darkfield)
 
 def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
-    for img in img_list:
-        img[1].image_subtract_background(image_input=apply_to, backgroundSubtractor=backgroundSubtractor, bg_method=bg_method, bg_filepath=bg_filepath)
+    for img in img_list.values():
+        img.image_subtract_background(image_input=apply_to, backgroundSubtractor=backgroundSubtractor, bg_method=bg_method, bg_filepath=bg_filepath)
 
 
 def analyze_img_quality(img_list):
@@ -196,11 +196,11 @@ def analyze_img_quality(img_list):
     stds = []
     snrs = []
 
-    for img in img_list:
-        img[1].calculate_stats()
-        means.append(img[1].stats.raw_mean.values)
-        stds.append(img[1].stats.raw_std.values)
-        snrs.append(img[1].stats.raw_snr.values)
+    for img in img_list.values():
+        img.calculate_stats()
+        means.append(img.stats.raw_mean.values)
+        stds.append(img.stats.raw_std.values)
+        snrs.append(img.stats.raw_snr.values)
 
     mean = int(np.mean(means))
     std = int(np.mean(stds))

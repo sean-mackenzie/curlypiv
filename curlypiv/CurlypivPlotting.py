@@ -67,7 +67,7 @@ def plot_per_loc(loc, plot_value='Umag'):
 
 
 
-def plot_quiver(x, y, u, v, img, pivSetup,
+def plot_quiver(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
                 u_mag_mean = None, u_mag_std = None,
                 locname=None, testname=None, runname=None, seqname=None):
 
@@ -104,9 +104,18 @@ def plot_quiver(x, y, u, v, img, pivSetup,
 
     if pivSetup.vectors_on_image is True:
 
-        img_plot = img.filtered.copy()
+        if img_piv_plot == 'filtered':
+            img_plot = img.filtered.copy()
+        if img_piv_plot == 'bg':
+            img_plot = img.bg.copy()
+        if img_piv_plot == 'bgs':
+            img_plot = img.bgs.copy()
+        if img_piv_plot == 'masked':
+            img_plot = img.masked.copy()
 
         M = np.hypot(u, v)
+
+        j = np.round(np.shape(img_plot)[0] / pivSetup.pix_per_um)
 
         # resize with a bi-quartic interpolation
         img_plot = skimage_resize(img_plot,
@@ -138,7 +147,7 @@ def plot_quiver(x, y, u, v, img, pivSetup,
         plt.tight_layout()
 
         if pivSetup.save_plot is True:
-            pth = '/Users/mackenzie/Desktop/03.18.21-ZuPIV_test/tests/loc1/E2.5Vmm/results'
+            pth = pivSetup.save_plot_path
             savepath = pth + '/' + title + '.jpg'
             plt.savefig(fname=savepath)
 

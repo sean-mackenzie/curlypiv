@@ -108,14 +108,18 @@ class channel(object):
 
 class bpe(object):
 
-    def __init__(self, length=None, width=None, height=None, material=None, adhesion_material=None):
+    def __init__(self, length=None, width=None, height=None, material=None, adhesion_material=None,
+                 dielectric_coating=None):
         """
         Everything important about the chip
         """
         self.length = length
+        self.linspace_x = np.linspace(-length/2, length/2, num=100)
         self.width = width
         self.height = height
         self.material = material
+
+        self.dielectric_coating = dielectric_coating
         self.adhesion_material = adhesion_material
 
 class optics(object):
@@ -145,16 +149,18 @@ class illumination(object):
         :param dichroic:
         """
         self.basePath = basePath    # this should come from CurlypivTestCollection
-        self.source=source
-        self.excitation_wavelength=excitation
-        self.emission_wavelength=emission
-        self.dichroic=dichroic
+        self.source = source
+        self.excitation_wavelength = excitation
+        self.emission_wavelength = emission
+        self.dichroic = dichroic
 
         if illumination_distribution is not None:
-            if isinstance(illumination_distribution, str):
-                self.illumination_distribution = io.imread(illumination_distribution, plugin='tifffile')
-            else:
-                self.illumination_distribution = illumination_distribution
+            self.illumination_distribution = illumination_distribution
+        elif illumPath is not None:
+            flatfield = io.imread(illumPath, plugin='tifffile')
+            if len(np.shape(flatfield)) > 2:
+                flatfield = np.asarray(np.rint(np.mean(flatfield, axis=0)), dtype='uint16')
+            self.illumination_distribution = flatfield
         elif calculate_illumination_distribution and illumination_distribution is None:
             self.illumination_distribution = measureIlluminationDistributionXY(basePath=self.basePath, illumPath=illumPath,
                                                                            show_image=showIllumPlot, save_image=save_image, save_img_type='.tif',
@@ -163,10 +169,9 @@ class illumination(object):
         else:
             self.illumination_distribution = illumination_distribution
 
-        self.flatfield = self.illumination_distribution[0]
+        self.flatfield = self.illumination_distribution
         self.flatfield_mean = np.mean(self.flatfield)
         self.flatfield_std = np.std(self.flatfield)
-        self.flatfield_correction = self.illumination_distribution[1]
 
 class darkfield(object):
 
@@ -443,13 +448,17 @@ class electrode_configuration(object):
 
 class material_solid(object):
 
-    def __init__(self,  zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None):
+    def __init__(self,  zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None,
+                 epsr=None, conductivity=None, thickness=None, reaction_site_density=4, Ka=None):
         """
         everything about a material
         :param transparency:
         :param fluorescence_spectra:
         :param zeta:
         """
+        # geometry
+        self.thickness = thickness
+
         # mechanical
         self.concentration = concentration # For a solid, this is % by volume.
 
@@ -459,12 +468,18 @@ class material_solid(object):
         self.transparency = transparency
         if self.transparency:
             self.reflectivity = 1 / self.transparency
-        # chemical
+
+        # electrochemical
+        self.conductivity = conductivity
+        self.permittivity = epsr*8.854e-12
         self.zeta = zeta
+        self.reaction_site_density = reaction_site_density*1e18       # (#/nm2) surface density of reaction sites: accepts nm2 and converts to m2 (see Squires)
+        self.Ka = Ka            # reaction equilibrium constant
 
 class material_liquid(object):
 
-    def __init__(self, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None):
+    def __init__(self, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None,
+                 epsr=None, temperature=None, a_h=None):
         """
         everything about a liquid
         :param species:
@@ -472,10 +487,15 @@ class material_liquid(object):
         :param conductivity:
         :param pH:
         """
+
+        # electrochemical
         self.species = species
-        self.concentration = concentration
+        self.concentration = concentration      # (mmol) = (mmol/L) = (mol/m3)
         self.conductivity = conductivity
+        self.permittivity = epsr*8.854e-12
         self.pH = pH
 
+        # mechanical
         self.density = density
         self.viscosity = viscosity
+        self.T = temperature

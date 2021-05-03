@@ -5,7 +5,6 @@ Notes
 
 # import modules
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from matplotlib.image import NonUniformImage
 from math import ceil

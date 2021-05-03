@@ -25,6 +25,7 @@ import pandas as pd
 # Image Processing
 import cv2 as cv
 from skimage import io
+import matplotlib.pyplot as plt
 
 
 # Curlypiv
@@ -53,7 +54,7 @@ class CurlypivPIV(object):
 
     def __init__(self, testCollection, testSetup, pivSetup=None,
                  cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None,
-                 backSub_init_frames=15, num_analysis_frames=10,
+                 backSub_init_frames=50, num_analysis_frames=30, img_piv='filtered', img_piv_plot='filtered',
                  exclude=[]):
 
         if not isinstance(testCollection, curlypiv.CurlypivTestCollection):
@@ -73,8 +74,10 @@ class CurlypivPIV(object):
 
         self.bg_method = backsubspecs
         self.backSub = None
+        self.img_piv = img_piv
         self.backSub_init_frames = backSub_init_frames
         self.num_analysis_frames = num_analysis_frames
+        self.img_piv_plot = img_piv_plot
 
     def piv_analysis(self, level,
                      save_texts=False, save_plots=False, show_plots=False,
@@ -141,7 +144,7 @@ class CurlypivPIV(object):
 
                 # resize
                 if self.resizespecs:
-                    img.image_resize(method='pyramid_expand', scale=self.resizespecs)
+                    img.image_resize(resizespecs=self.resizespecs)
 
                 # filter
                 if self.filterspecs:
@@ -151,17 +154,17 @@ class CurlypivPIV(object):
                 if self.backsubspecs:
                     img.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub)
 
-            if counter > self.backSub_init_frames:
+            if counter >= self.backSub_init_frames:
                 img_b = img_b_list[counter + 1]
 
-                for im in [img, img_b]:
+                for im in [img_b]:
                     # crop
                     if self.cropspecs:
                         im.image_crop(cropspecs=self.cropspecs)
 
                     # resize
                     if self.resizespecs:
-                        im.image_resize(method='pyramid_expand', scale=self.resizespecs)
+                        im.image_resize(resizespecs=self.resizespecs)
 
                     # filter
                     if self.filterspecs:
@@ -172,14 +175,17 @@ class CurlypivPIV(object):
                     if self.backsubspecs:
                         im.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub)
 
-                    # plotter
-                    fig, ax = plt.subplots()
-                    ax.imshow(img.img_bgs)
-                    plt.show()
-                    print('ha')
-
                 # 3.1.4 - Start First Pass PIV
-                x, y, u, v, s2n = windef.first_pass(img.masked,img_b.masked,self.pivSetup.settings)
+                if self.img_piv == 'filtered':
+                    x, y, u, v, s2n = windef.first_pass(img.filtered, img_b.filtered, self.pivSetup.settings)
+                if self.img_piv == 'bg':
+                    x, y, u, v, s2n = windef.first_pass(img.bg, img_b.bg, self.pivSetup.settings)
+                if self.img_piv == 'bgs':
+                    x, y, u, v, s2n = windef.first_pass(img.bgs, img_b.bgs, self.pivSetup.settings)
+                if self.img_piv == 'masked':
+                    x, y, u, v, s2n = windef.first_pass(img.masked,img_b.masked,self.pivSetup.settings)
+
+                print(counter)
 
                 if np.isnan(u[0][0]) is True:
                     print("PIV First-Pass gives no results: (u,v) = Nan")
@@ -192,17 +198,27 @@ class CurlypivPIV(object):
 
                 # 3.2.0 - Run multi pass windows deformation loop
                 for current_iteration in range(0, self.pivSetup.settings.num_iterations):
-                    x, y, u, v, s2n, mask = windef.multipass_img_deform(
-                        img.masked,
-                        img_b.masked,
-                        current_iteration,
-                        x,
-                        y,
-                        u,
-                        v,
-                        self.pivSetup.settings,
-                        mask_coords=mask_coords
-                    )
+                    if self.img_piv == 'filtered':
+                        x, y, u, v, s2n, mask = windef.multipass_img_deform(img.filtered, img_b.masked, current_iteration,
+                                                                            x, y, u, v,
+                                                                            self.pivSetup.settings,
+                                                                            mask_coords=mask_coords)
+                    if self.img_piv == 'bg':
+                        x, y, u, v, s2n, mask = windef.multipass_img_deform(img.bg, img_b.masked, current_iteration,
+                                                                            x, y, u, v,
+                                                                            self.pivSetup.settings,
+                                                                            mask_coords=mask_coords)
+                    if self.img_piv == 'bgs':
+                        x, y, u, v, s2n, mask = windef.multipass_img_deform(img.bgs, img_b.masked, current_iteration,
+                                                                            x, y, u, v,
+                                                                            self.pivSetup.settings,
+                                                                            mask_coords=mask_coords)
+                    if self.img_piv == 'masked':
+                        x, y, u, v, s2n, mask = windef.multipass_img_deform(img.masked, img_b.masked, current_iteration,
+                                                                            x, y, u, v,
+                                                                            self.pivSetup.settings,
+                                                                            mask_coords=mask_coords)
+
 
                 # If the smoothing is active, we do it at each pass
                 # but not the last one
@@ -241,7 +257,7 @@ class CurlypivPIV(object):
                 v_means.append(img.v_mean)
 
                 if self.pivSetup.save_plot or self.pivSetup.show_plot:
-                    plot_quiver(x, y, u, v, img, self.pivSetup,
+                    plot_quiver(x, y, u, v, img, self.pivSetup, img_piv_plot=self.img_piv_plot,
                                 u_mag_mean = img.M_mean, u_mag_std = img.M_std,
                                 locname=locname, testname=testname, runname=runname, seqname=seqname)
 

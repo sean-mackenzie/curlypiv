@@ -123,7 +123,9 @@ class CurlypivFile(object):
                 if crop_func not in valid_crops:
                     raise ValueError("{} is not a valid crop dimension. Use: {}".format(crop_func, valid_crops))
 
-            if self._original is None: self._original = self._raw.copy()
+            if self._original is None:
+                self._original = self._raw.copy()
+
             self._raw = self._raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
 
     def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_filepath=None, bg_method="KNN"):
@@ -240,7 +242,10 @@ class CurlypivFile(object):
 
         vmin, vmax = np.percentile(self._raw, (0, 100))
 
-        img_corrected = (self._raw - darkfield) * (flatfield - darkfield) / (flatfield - darkfield)
+        import matplotlib.pyplot as plt
+
+
+        img_corrected = (self._raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
 
         img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
 
@@ -257,7 +262,7 @@ class CurlypivFile(object):
 
         # calculate approximate signal to noise ratio
         # background and signal values
-        bkg, sig = np.percentile(self._raw, (90, 99))
+        bkg, sig = np.percentile(self._raw, (50, 99.5))
         # masks
         bkg_mask = self._raw < bkg
         sig_mask = self._raw > sig

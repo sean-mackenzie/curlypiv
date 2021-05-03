@@ -70,9 +70,9 @@ def measureIlluminationDistributionXY(basePath=None, illumPath=None, show_image=
         img = io.imread_collection(load_pattern=img_list, conserve_memory=False, plugin='tifffile')
         img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
     elif num_images == 1:
-        img = io.imread(illumPath, plugin='tifffile')
-        if img is None:
-            raise ValueError("if num_images==1, then illumPath must be the direct image file path")
+        img = io.imread(img_list[0], plugin='tifffile')
+        if len(np.shape(img)) > 2:
+            img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
     else:
         raise ValueError("No images were found.")
 
@@ -172,7 +172,7 @@ def measureIlluminationDistributionXY(basePath=None, illumPath=None, show_image=
 
     img = np.asarray(np.rint(rescale_intensity(img, in_range='image', out_range=(vmin_orig, vmax_orig))), dtype='uint16')
 
-    return img, img_flatfield_correction
+    return img
 
 
 def particle_illumination_distribution(x, y, z=None,

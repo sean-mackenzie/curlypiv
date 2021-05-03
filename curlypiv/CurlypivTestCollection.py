@@ -36,8 +36,8 @@ class CurlypivTestCollection(object):
     def __init__(self, collectionName, dirpath, file_type,
                  process=None, electric_field_strengths=None, frequencies=None,
                  runs=None, seqs=None, tests=None,
-                 backgroundsub_specs=None, processing_specs=None, thresholding_specs=None, cropping_specs=None,
-                 dir_tests='tests',dir_bg='background',dir_results='results',
+                 backsub_specs=None, processing_specs=None, thresholding_specs=None, cropping_specs=None, resizing_specs=None,
+                 dir_tests='tests', dir_bg='background', dir_results='results',
                  locid = 'loc', testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
                  load_files=False, exclude=[],
                  calibration_grid_path=None, calibration_illum_path=None, calibration_camnoise_path=None,
@@ -66,15 +66,20 @@ class CurlypivTestCollection(object):
         self._add_locs()
         self._get_size()
 
+        self.cropping_specs = cropping_specs
+        self.resizing_specs = resizing_specs
+        self.backsub_specs = backsub_specs
         self.processing_specs = processing_specs
         self.thresholding_specs = thresholding_specs
-        self.cropping_specs = cropping_specs
+
 
         # data structure dependent files
         if calibration_grid_path is None:
             self.grid_path = join(self.dirpath, 'setup/calibration/microgrid')
         if calibration_illum_path is None:
             self.illum_path = join(self.dirpath, 'setup/calibration/illumination')
+        else:
+            self.illum_path = join(self.dirpath, 'setup/calibration/illumination', calibration_illum_path)
         if calibration_camnoise_path is None:
             self.camnoise_path = join(self.dirpath, 'setup/calibration/cameraNoise')
 
@@ -322,6 +327,8 @@ class CurlypivTest(object):
 
         self._testname = find_substring(string=self.dirpath, leadingstring=self.testid[0], trailingstring=self.testid[1],
                                        dtype=float)[0]
+        self._E = self._testname[0]     # * need to write script *
+        self._f = self._testname[1]     # * need to write script *
 
         self._find_runs()
         self._add_runs()
@@ -335,6 +342,8 @@ class CurlypivTest(object):
         repr_dict = {'Dirpath': self.dirpath,
                      'Filetype': self.file_type,
                      'Test identifier': self._testname,
+                     'Electric field': self._E,
+                     'Frequency': self._f,
                      'Run list': self.run_list,
                      'Total number of images': self._size}
         out_str = "{}: \n".format(class_)
@@ -710,8 +719,11 @@ class CurlypivSequence(object):
         # get subset from 0 to file_lim by index
         subset = list(full_set)[:self.file_lim]
 
+        # split into two lists
+        subset_filenames, subset_files = map(list, zip(*subset))
+
         # update sequence properties
-        self.files = subset
+        self.files = dict(zip(subset_filenames, subset_files))
         self.file_list = self.file_list[:self.file_lim]
         self.get_size()
 
@@ -759,10 +771,10 @@ class CurlypivSequence(object):
         apply_flatfield_correction(self.files, flatfield, darkfield)
 
     def apply_image_processing(self, cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None):
-        for img in self.files:
-            img[1].image_crop(cropspecs=cropspecs)          # crop
-            img[1].image_resize(resizespecs=resizespecs)    # resize
-            img[1].image_filter(filterspecs=filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
+        for img in self.files.values():
+            img.image_crop(cropspecs=cropspecs)          # crop
+            img.image_resize(resizespecs=resizespecs)    # resize
+            img.image_filter(filterspecs=filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
 
 
     def apply_background_subtractor(self, bg_method='KNN', apply_to='raw'):
@@ -773,38 +785,43 @@ class CurlypivSequence(object):
 
         apply_background_subtractor(self.files, backgroundSubtractor=backSub, bg_method=bg_method, apply_to=apply_to, bg_filepath=None)
 
-    def animate_background_subtractor(self, img='bgs', start=0, stop=200, savePath=None):
+    def animate_background_subtractor(self, img_animate='bgs', start=0, stop=200, savePath=None):
         valid_imgs = ['bg', 'bgs', 'filtered', 'mask', 'masked', 'original', 'raw']
-        if img not in valid_imgs:
+        if img_animate not in valid_imgs:
             raise ValueError("Animation image must be one of {}".format(valid_imgs))
 
         counter = start
         if stop > len(self.files):
             stop = len(self.files)
 
-        while counter < stop:
-            if img == 'bg':
-                frame = self.files[counter][1].bg
-            elif img == 'bgs':
-                frame = self.files[counter][1].bgs
-            elif img == 'filtered':
-                frame = self.files[counter][1].filtered
-            elif img == 'masked':
-                frame = self.files[counter][1].masked
-            elif img == 'original':
-                frame = self.files[counter][1].original
-            elif img == 'raw':
-                frame = self.files[counter][1].raw
+        for name, img in self.files.items():
+
+            if counter >= stop:
+                break
+
+            if img_animate == 'bg':
+                frame = img.bg
+            elif img_animate == 'bgs':
+                frame = img.bgs
+            elif img_animate == 'filtered':
+                frame = img.filtered
+            elif img_animate == 'masked':
+                frame = img.masked
+            elif img_animate == 'original':
+                frame = img.original
+            elif img_animate == 'raw':
+                frame = img.raw
 
 
             if savePath and counter > (stop - start) / 2:
-                cv.imwrite(savePath + '/{}_'.format(img) + self.files[counter][1].filename, frame)
+                cv.imwrite(savePath + '/{}_'.format(img_animate) + name, frame)
 
-            cv.imshow('Background subtracted image', frame)
+            cv.imshow('Background subtracted {} image'.format(img_animate), frame)
             counter += 1
             keyboard = cv.waitKey(80)
             if keyboard == 'q' or keyboard == 27:
                 break
+
         cv.destroyAllWindows()
 
     def add_piv_data(self, u_mag_mean=None, u_mag_std=None, u_mean=None, v_mean=None, u_mag_bkg=None):

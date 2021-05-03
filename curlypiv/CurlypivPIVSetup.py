@@ -30,10 +30,6 @@ sys.path.insert(1, '/Users/mackenzie/PythonProjects/openpiv')
 import openpiv.piv
 from openpiv import windef
 from openpiv.windef import Settings
-from openpiv import tools, scaling, validation, filters, preprocess
-from openpiv.pyprocess import extended_search_area_piv, get_field_shape, get_coordinates
-from openpiv import smoothn
-from openpiv.preprocess import mask_coordinates
 
 
 # 2.0 define class
@@ -42,7 +38,7 @@ class CurlypivPIVSetup(object):
 
     def __init__(self, name, save_text, save_plot,
                  testCollection, testSetup,
-                 show_plot=False, vectors_on_image=True):
+                 show_plot=False, save_plot_path=None, vectors_on_image=True):
         """
         Notes
         """
@@ -51,6 +47,7 @@ class CurlypivPIVSetup(object):
         self._name = name
         self.save_text = save_text
         self.save_plot = save_plot
+        self.save_plot_path = save_plot_path
         self.show_plot = show_plot
 
         # OpenPIV
@@ -60,7 +57,7 @@ class CurlypivPIVSetup(object):
         self.vectors_on_image = vectors_on_image
         self.settings.scale_plot = 1
         self.colorMap = 'plasma'
-        self.colorNorm = colors.Normalize(vmin=0, vmax=300)
+        self.colorNorm = colors.Normalize(vmin=0, vmax=100)
         self.alpha = 0.75
         self.scalebar_microns = 50 # units are microns
         self.dpi = 200
@@ -90,8 +87,8 @@ class CurlypivPIVSetup(object):
         self.settings.correlation_method = 'linear'
         self.settings.normalized_correlation = True
         self.settings.deformation_method = 'symmetric'  # 'symmetric' or 'second image'
-        self.settings.windowsizes = (156, 128)  # sizex//4, sizex//8 suggestion is these are power of 2 of each other
-        self.settings.overlap = (78, 64)  # should be 50%-75% of window size (Raffel)
+        self.settings.windowsizes = (160, 128)  # sizex//4, sizex//8 suggestion is these are power of 2 of each other
+        self.settings.overlap = (80, 64)  # should be 50%-75% of window size (Raffel)
         self.settings.num_iterations = len(self.settings.windowsizes)
         self.settings.subpixel_method = 'gaussian'  # subpixel interpolation: 'gaussian','centroid','parabolic'
         self.settings.interpolation_order = 3  # interpolation order for the window deformation (suggested: 3-5)
@@ -108,8 +105,8 @@ class CurlypivPIVSetup(object):
         self.settings.sig2noise_mask = 1  # (1.2 - 1.5) correlation peak height to mean correlation height
         # vector validation
         self.settings.validation_first_pass = False  # Vector validation of first pass
-        self.u_uncertainty = 0.15  # if std(u)*2 < uncertainty: don't apply global std threshold
-        self.v_uncertainty = 0.15  # if std(v)*2 < uncertainty: don't apply global std threshold
+        self.u_uncertainty = 0.25  # if std(u)*2 < uncertainty: don't apply global std threshold
+        self.v_uncertainty = 0.25  # if std(v)*2 < uncertainty: don't apply global std threshold
         self.settings.MinMax_U_disp = (-self.char_u, self.char_u)  # filter u (units: pixels/frame)
         self.settings.MinMax_V_disp = (-self.char_u / 15, self.char_u / 15)  # filter v (units: pixels/frame)
         self.settings.std_threshold = 2  # global std validation threshold: global mean +/- stdev * std_threshold
