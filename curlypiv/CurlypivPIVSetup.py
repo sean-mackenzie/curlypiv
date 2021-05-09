@@ -36,9 +36,9 @@ from openpiv.windef import Settings
 
 class CurlypivPIVSetup(object):
 
-    def __init__(self, name, save_text, save_plot,
-                 testCollection, testSetup,
-                 show_plot=False, save_plot_path=None, vectors_on_image=True):
+    def __init__(self, name, save_text, save_plot, testCollection, testSetup,
+                 win1=128, win2=64, show_plot=False, save_plot_path=None, vectors_on_image=True,
+                 calculate_zeta=False, replace_Nans_with_zeros=True, save_u_mean_plot=False):
         """
         Notes
         """
@@ -47,8 +47,10 @@ class CurlypivPIVSetup(object):
         self._name = name
         self.save_text = save_text
         self.save_plot = save_plot
+        self.save_u_mean_plot = save_u_mean_plot
         self.save_plot_path = save_plot_path
         self.show_plot = show_plot
+        self.calculate_zeta = calculate_zeta
 
         # OpenPIV
         self.settings = Settings()
@@ -57,9 +59,9 @@ class CurlypivPIVSetup(object):
         self.vectors_on_image = vectors_on_image
         self.settings.scale_plot = 1
         self.colorMap = 'plasma'
-        self.colorNorm = colors.Normalize(vmin=0, vmax=100)
-        self.alpha = 0.75
-        self.scalebar_microns = 50 # units are microns
+        self.colorNorm = colors.Normalize(vmin=0, vmax=50)
+        self.alpha = 1
+        self.scalebar_microns = 25 # units are microns
         self.dpi = 200
 
         # camera
@@ -74,7 +76,7 @@ class CurlypivPIVSetup(object):
         self.est_zeta = testSetup.chip.channel.material_wall_surface.zeta
 
         # scientific
-        self.epsr = 80.2
+        self.epsr = 80
         self.eps = self.epsr*8.854e-12
         self.mu = testSetup.chip.channel.material_fluid.viscosity
 
@@ -87,8 +89,8 @@ class CurlypivPIVSetup(object):
         self.settings.correlation_method = 'linear'
         self.settings.normalized_correlation = True
         self.settings.deformation_method = 'symmetric'  # 'symmetric' or 'second image'
-        self.settings.windowsizes = (160, 128)  # sizex//4, sizex//8 suggestion is these are power of 2 of each other
-        self.settings.overlap = (80, 64)  # should be 50%-75% of window size (Raffel)
+        self.settings.windowsizes = (win1, win2)  # sizex//4, sizex//8 suggestion is these are power of 2 of each other
+        self.settings.overlap = (win1//2, win2//2)  # should be 50%-75% of window size (Raffel)
         self.settings.num_iterations = len(self.settings.windowsizes)
         self.settings.subpixel_method = 'gaussian'  # subpixel interpolation: 'gaussian','centroid','parabolic'
         self.settings.interpolation_order = 3  # interpolation order for the window deformation (suggested: 3-5)
@@ -97,33 +99,42 @@ class CurlypivPIVSetup(object):
         self.settings.ROI = ('full')
 
         # snr parameters
-        self.mask_first_pass = False  # Mask first pass
-        self.mask_multi_pass = False
+        self.mask_first_pass = True  # Mask first pass
+        self.mask_multi_pass = True
         #self.settings.extract_sig2noise = True  # Compute SNR for last pass / if False: SNR set to NaN in output txt.
-        self.settings.image_mask = False  # Do image masking
+        self.settings.image_mask = True  # Do image masking
         self.settings.sig2noise_method = 'peak2peak'  # Method to compute SNR: 'peak2peak' or 'peak2mean'
-        self.settings.sig2noise_mask = 1  # (1.2 - 1.5) correlation peak height to mean correlation height
+        self.settings.sig2noise_mask = 3  # (2 - 5) exclusion distance between highest peak and second highest peak in correlation map
+        # min/max velocity vectors for validation
+        self.settings.MinMax_U_disp = (-self.char_u / 3, self.char_u / 3)  # filter u (units: pixels/frame)
+        self.settings.MinMax_V_disp = (-self.char_u / 50, self.char_u / 50)  # filter v (units: pixels/frame)
         # vector validation
-        self.settings.validation_first_pass = False  # Vector validation of first pass
-        self.u_uncertainty = 0.25  # if std(u)*2 < uncertainty: don't apply global std threshold
-        self.v_uncertainty = 0.25  # if std(v)*2 < uncertainty: don't apply global std threshold
-        self.settings.MinMax_U_disp = (-self.char_u, self.char_u)  # filter u (units: pixels/frame)
-        self.settings.MinMax_V_disp = (-self.char_u / 15, self.char_u / 15)  # filter v (units: pixels/frame)
-        self.settings.std_threshold = 2  # global std validation threshold: global mean +/- stdev * std_threshold
-        self.settings.median_threshold = 1.5  # median validation threshold
-        self.settings.median_size = 3  # defines the size of the local median kernel
-        #self.settings.do_sig2noise_validation = True  # Enables validation by SNR ratio
-        self.settings.sig2noise_threshold = 2  # Sets snr threshold for removing vectors
+        self.settings.validation_first_pass = True  # Vector validation of first pass
+        self.u_uncertainty = 0.35  # if std(u)*2 < uncertainty: don't apply global std threshold
+        self.v_uncertainty = 0.35  # if std(v)*2 < uncertainty: don't apply global std threshold
+        self.settings.std_threshold = 2.75  # global std validation threshold: global mean +/- stdev * std_threshold
+        self.settings.median_threshold = 2.75  # median validation threshold
+        self.settings.median_size = 2  # defines the size of the local median kernel
+        self.settings.sig2noise_validate = True  # Enables validation by SNR ratio
+        self.settings.sig2noise_threshold = 1.3  # [1.2-1.5] Sets snr threshold for removing vectors (R. D. Keane and R. J. Adrian, Measurement Science & Technology, 1990)
         # outlier replacement and smoothing
         self.settings.replace_vectors = True  # Outlier replacement for last pass
+        self.replace_Nans_with_zeros = replace_Nans_with_zeros # Outlier replacement where all Nans = 0
         self.settings.smoothn = True  # Enables Garcia smoothing function of velocity fields
-        self.settings.smoothn_p = [0.75]  # [0.5] Smoothing parameter or auto-calculated using generalized cross-validation (GCV) method
+        self.settings.smoothn_p = [0.01]  # [0.5] Smoothing parameter or auto-calculated using generalized cross-validation (GCV) method
         self.settings.filter_method = 'distance'  # Replace outlier vector method: localmean [square] or disk (unweighted circle), distance (weighted circle)
-        self.settings.max_filter_iteration = 7  # maximum iterations performed to replace the outliers (max 10)
-        self.settings.filter_kernel_size = 2  # kernel size for replacing outlier vectors (default
+        self.settings.max_filter_iteration = 3  # maximum iterations performed to replace the outliers (max 10)
+        self.settings.filter_kernel_size = 2 # kernel size for replacing outlier vectors (default
 
         self.settings._freeze()
 
+
+        # print PIV settings
+        print('Min/Max U-displacement: ', self.settings.MinMax_U_disp, ' (pixels/frame)')
+        print('Min/Max U-displacement: ', np.array([self.settings.MinMax_U_disp[0], self.settings.MinMax_U_disp[1]], dtype=int)*self.pixels_to_microns/self.dtf, ' (um/s)')
+
+        print('Min/Max V-displacement: ', self.settings.MinMax_V_disp, ' (pixels/frame)')
+        print('Min/Max V-displacement: ', np.array([self.settings.MinMax_V_disp[0],self.settings.MinMax_V_disp[1]], dtype=int)*self.pixels_to_microns/self.dtf, ' (um/s)')
 
 
 

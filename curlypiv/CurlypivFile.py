@@ -17,7 +17,11 @@ import cv2 as cv
 import imutils
 from skimage import io
 from skimage.exposure import rescale_intensity
+from skimage.measure import find_contours, approximate_polygon, points_in_poly
 from skimage import data, filters, measure, morphology
+
+# plotting
+import matplotlib.pyplot as plt
 
 # Curlypiv
 from curlypiv.CurlypivUtils import find_substring
@@ -96,11 +100,45 @@ class CurlypivFile(object):
         else:
             self._processing_stats = new_stats.combine_first(self._processing_stats)
 
-    def image_resize(self, resizespecs=None):
+    def image_bpe_filter(self, bpespecs=None):
+        """
+        Filter the BPE specific region
+        """
+        valid_specs = ['bxmin', 'bxmax', 'bymin', 'bymax', 'multiplier']
+        # example = [220, 280, 25, 450, 2]
 
-        if self._original is None: self._original = self._raw.copy()
+        if bpespecs is not None:
+            bymin = self.shape[1] - bpespecs['bymax']
+            bymax = self.shape[1] - bpespecs['bymin']
 
-        self._raw = img_resize(self._raw, method=resizespecs['method'], scale=resizespecs['scale'])
+            for bpe_func in bpespecs.keys():
+                if bpe_func not in valid_specs:
+                    raise ValueError("{} is not a valid crop dimension. Use: {}".format(bpe_func, valid_specs))
+
+            if self._original is None:
+                self._original = self._raw.copy()
+
+            # bpe mask
+            nrows, ncols = np.shape(self._raw)
+            row, col = np.ogrid[:nrows, :ncols]
+            bpe_mask_left = bpespecs['bxmin'] - col < 0
+            bpe_mask_right = bpespecs['bxmax'] - col > 0
+            bpe_mask_top = bymax - row > 0
+            bpe_mask_bottom = bymin - row < 0
+            bpe_mask_cols = np.logical_and(bpe_mask_left, bpe_mask_right)
+            bpe_mask_rows = np.logical_and(bpe_mask_top, bpe_mask_bottom)
+            bpe_mask = np.logical_and(bpe_mask_cols, bpe_mask_rows)
+            img_bpe_masked = self._raw.copy()
+            img_bpe_masked[~bpe_mask] = 0
+
+            # filter bpe region
+            raw_masked = ma.array(self._raw.copy(), mask=~bpe_mask)
+            raw_masked = raw_masked * bpespecs['multiplier']
+
+            # store mask and update raw image
+            self.bpe_mask = bpe_mask
+            self._raw = raw_masked.data
+
 
     def image_crop(self, cropspecs):
         """
@@ -112,6 +150,9 @@ class CurlypivFile(object):
 
         valid_crops = ['xmin','xmax','ymin','ymax']
         # example = [20, 500, 0, 400]
+
+        if cropspecs['ymax'] > self.shape[1]:
+            cropspecs['ymax'] = self.shape[1]
 
         ymin = self.shape[1] - cropspecs['ymax']
         ymax = self.shape[1] - cropspecs['ymin']
@@ -127,6 +168,15 @@ class CurlypivFile(object):
                 self._original = self._raw.copy()
 
             self._raw = self._raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
+            self.bpe_mask = self.bpe_mask[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
+
+    def image_resize(self, resizespecs=None):
+
+        if resizespecs is not None:
+            if self._original is None:
+                self._original = self._raw.copy()
+
+            self._raw = img_resize(self._raw, method=resizespecs['method'], scale=resizespecs['scale'])
 
     def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_filepath=None, bg_method="KNN"):
         """
@@ -235,19 +285,31 @@ class CurlypivFile(object):
         self.v_std = np.round(np.std(v),2)
         self.M_std = np.round(np.std(M),2)
 
-    def apply_flatfield_correction(self, flatfield, darkfield):
+    def apply_flatfield_correction(self, darkfield, flatfield=None):
+
+        if flatfield is None:
+            self.apply_darkfield_correction(darkfield)
+        else:
+            if self._original is None:
+                self._original = self._raw
+
+            vmin, vmax = np.percentile(self._raw, (0, 100))
+
+            img_corrected = (self._raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
+
+            img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
+
+            self._raw = img_corrected
+
+    def apply_darkfield_correction(self, darkfield):
 
         if self._original is None:
             self._original = self._raw
 
-        vmin, vmax = np.percentile(self._raw, (0, 100))
-
-        import matplotlib.pyplot as plt
-
-
-        img_corrected = (self._raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
-
-        img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
+        if np.shape(self._raw) == np.shape(darkfield):
+            img_corrected = self._raw - darkfield
+        else:
+            img_corrected = self._raw - np.mean(darkfield)
 
         self._raw = img_corrected
 

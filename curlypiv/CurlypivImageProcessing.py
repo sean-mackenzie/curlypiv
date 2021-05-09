@@ -21,7 +21,7 @@ import cv2 as cv
 from skimage import img_as_float
 from skimage import io
 from skimage.morphology import disk, white_tophat
-from skimage.filters import median, gaussian
+from skimage.filters import median, gaussian, threshold_local
 from skimage.restoration import denoise_wavelet
 from skimage.exposure import rescale_intensity, equalize_adapthist, equalize_hist
 from skimage.transform import rescale, pyramid_expand
@@ -84,6 +84,7 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
     :param bg_img:
     :return:
     """
+    mask_manual = False
 
     # check data type of input array
     if img.dtype == 'uint16':
@@ -95,8 +96,24 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
 
     if backgroundSubtractor is not None:
         mask = backgroundSubtractor.apply(img_backSub)
+
+        # read the backgroundSubtractor
+        #bs_Dist2Threshold = backgroundSubtractor.getDist2Threshold()
+        #bs_kNNSamples = backgroundSubtractor.getkNNSamples()
+        #bs_NSamples = backgroundSubtractor.getNSamples()
+
+        # print the backgroundSubtractor
+        #print("Distance to threshold: {}".format(bs_Dist2Threshold))
+        #print("k NN samples: {}".format(bs_kNNSamples))
+        #print("Number of samples: {}".format(bs_NSamples))
+
     else:
-        if bg_method not in valid_bs_methods:
+        if bg_method is None:
+            #mask = img_backSub > np.mean(img_backSub) * 1.75
+            adaptive_thresh = threshold_local(img_backSub, block_size=59, offset=-11)
+            mask = img_backSub > adaptive_thresh
+            mask_manual = True
+        elif bg_method not in valid_bs_methods:
             raise ValueError(
                 "{} is not a valid method. Implemented so far are {}".format(bg_method, valid_bs_methods[0:2]))
         elif bg_method == 'KNN':
@@ -113,15 +130,24 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
                 "{} is still under development. Implemented so far are {}".format(bg_method, valid_bs_methods[0:2]))
 
     # masking
-    img_masked = gaussian(mask, sigma=0.75, preserve_range=False)
-    img_masked = np.asarray(np.rint(img_masked*255), dtype='uint16')
-    img_mask = img_masked > np.median(img_masked)
+    if mask_manual is False:
+        img_masked = gaussian(mask, sigma=2.5, preserve_range=False)
+        img_masked = np.asarray(np.rint(img_masked*255), dtype='uint16')
+        img_mask = img_masked > np.median(img_masked)*1.35
 
-    # background sub images
-    img_bg = img.copy()
-    img_bg[img_mask] = 0
-    img_bgs = img.copy()
-    img_bgs[~img_mask] = 0
+        # background sub images
+        img_bg = img.copy()
+        img_bg[img_mask] = 0
+        img_bgs = img.copy()
+        img_bgs[~img_mask] = 0
+    else:
+        img_mask = mask
+        img_masked = gaussian(mask, sigma=1, preserve_range=False)
+        img_small_parts = white_tophat(img_masked, selem=disk(3))
+        img_masked = img_masked - img_small_parts
+        img_masked = np.asarray(np.rint(img_masked*255*254), dtype='uint16')
+        img_bg = img.copy()
+        img_bgs = img_bg
 
     return(img_bg, img_bgs, img_mask, img_masked)
 
@@ -137,7 +163,7 @@ def img_filter(img, filterspecs):
     """
 
     valid_filters = ['none','median','gaussian','white_tophat','rescale_intensity',
-                     'denoise_wavelet']
+                     'denoise_wavelet', 'equalize_adapthist']
 
     filtering_sequence = 1
 
@@ -145,12 +171,17 @@ def img_filter(img, filterspecs):
         if process_func not in valid_filters:
             img_filtered = None
             raise ValueError("{} is not a valid filter. Implemented so far are {}".format(process_func, valid_filters))
-        if process_func == "none":
+        elif process_func == "none":
             img_filtered = img
-        if process_func == "rescale_intensity":
+        elif process_func == "rescale_intensity":
             args = filterspecs[process_func]['args']
             vmin, vmax = np.percentile(img, (args[0][0], args[0][1]))
             img_filtered = rescale_intensity(img, in_range=(vmin, vmax), out_range=args[1])
+        elif process_func == "equalize_adapthist":
+            vmin, vmax = np.percentile(img, (0, 100))       # store original range of values
+            kwargs = filterspecs[process_func]['kwargs']
+            img_filtered = equalize_adapthist(img, **kwargs)
+            img_filtered = rescale_intensity(img_filtered, out_range=(vmin, vmax))
         else:
             func = eval(process_func)
             args = filterspecs[process_func]['args']
@@ -185,6 +216,10 @@ def img_find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=
 def apply_flatfield_correction(img_list, flatfield, darkfield):
     for img in img_list.values():
         img.apply_flatfield_correction(flatfield, darkfield)
+
+def apply_darkfield_correction(img_list, darkfield):
+    for img in img_list.values():
+        img.apply_darkfield_correction(darkfield)
 
 def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
     for img in img_list.values():

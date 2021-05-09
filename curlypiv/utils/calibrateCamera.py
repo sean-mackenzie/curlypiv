@@ -90,10 +90,10 @@ def measureIlluminationDistributionXY(basePath=None, illumPath=None, show_image=
     vmin, vmax = np.percentile(img, (0.05, 99.95))
     img = rescale_intensity(img, in_range=(0, vmax), out_range='dtype')
 
-    # calculate flatfield correction
+    # calculate flatfieldPath correction
     img_flatfield_correction = 1 / img
 
-    # flatfield correction original image
+    # flatfieldPath correction original image
     img_orig_flatfield_corrected = img_orig * img_flatfield_correction
     img_orig_flatfield_corrected = rescale_intensity(img_orig_flatfield_corrected, in_range='image', out_range='uint16')
 
@@ -334,7 +334,9 @@ def plot_field_depth(depth_of_corr, depth_of_field=None, show_depth_plot=False, 
 def calculate_darkfield(basePath=None, darkframePath=None, show_image=False, save_image=False, save_img_type='.tif',
                                       savePath=None, savename=None, save_plot=False):
 
-    if basePath is not None:
+    if basePath.endswith('.tif'):
+        darkframePath = basePath
+    elif basePath is not None:
         darkframePath = join(basePath, 'setup/calibration/cameraNoise/darkfield')
         savePath = join(basePath, 'setup/calibration/results')
     elif darkframePath is None:

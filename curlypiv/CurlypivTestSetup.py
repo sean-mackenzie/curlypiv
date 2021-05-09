@@ -170,8 +170,10 @@ class illumination(object):
             self.illumination_distribution = illumination_distribution
 
         self.flatfield = self.illumination_distribution
-        self.flatfield_mean = np.mean(self.flatfield)
-        self.flatfield_std = np.std(self.flatfield)
+
+        if self.flatfield is not None:
+            self.flatfield_mean = np.mean(self.flatfield)
+            self.flatfield_std = np.std(self.flatfield)
 
 class darkfield(object):
 
@@ -266,6 +268,10 @@ class objective(object):
         self.microgrid = microgrid
         if auto_calc_pix_to_micron_scaling and self.pixel_to_micron is None:
             self.calculate_pixel_to_micron_scaling()
+        elif pixel_to_micron == '50X':
+            self.pixel_to_micron = 0.588
+        elif pixel_to_micron == '20X':
+            self.pixel_to_micron = 1.515
         else:
             self.pixel_to_micron = pixel_to_micron
 
@@ -448,19 +454,26 @@ class electrode_configuration(object):
 
 class material_solid(object):
 
-    def __init__(self,  zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None,
-                 epsr=None, conductivity=None, thickness=None, reaction_site_density=4, Ka=None):
+    def __init__(self,  name=None, zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None,
+                 permittivity=None, conductivity=None, thickness=None, youngs_modulus=None, poissons_ratio=None,
+                 density=None, dielectric_strength=None, reaction_site_density=None, Ka=None):
         """
         everything about a material
         :param transparency:
         :param fluorescence_spectra:
         :param zeta:
         """
+        # identity
+        self.name = name
+
         # geometry
         self.thickness = thickness
 
         # mechanical
-        self.concentration = concentration # For a solid, this is % by volume.
+        self.density = density
+        self.concentration = concentration      # For a solid, this is % by volume.
+        self.youngs_modulus = youngs_modulus
+        self.poissons_ratio = poissons_ratio
 
         # optical
         self.index_of_refraction = index_of_refraction
@@ -471,15 +484,18 @@ class material_solid(object):
 
         # electrochemical
         self.conductivity = conductivity
-        self.permittivity = epsr*8.854e-12
+        if permittivity:
+            self.permittivity = permittivity*8.854e-12
         self.zeta = zeta
-        self.reaction_site_density = reaction_site_density*1e18       # (#/nm2) surface density of reaction sites: accepts nm2 and converts to m2 (see Squires)
-        self.Ka = Ka            # reaction equilibrium constant
+        self.dielectric_strength = dielectric_strength
+        if reaction_site_density:
+            self.reaction_site_density = reaction_site_density*1e18     # (#/nm2) surface density of reaction sites: accepts nm2 and converts to m2 (see Squires)
+        self.Ka = Ka                                                    # reaction equilibrium constant
 
 class material_liquid(object):
 
-    def __init__(self, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None,
-                 epsr=None, temperature=None, a_h=None):
+    def __init__(self, name=None, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None,
+                 permittivity=None, temperature=None):
         """
         everything about a liquid
         :param species:
@@ -487,15 +503,20 @@ class material_liquid(object):
         :param conductivity:
         :param pH:
         """
+        # identity
+        self.name = name
 
         # electrochemical
         self.species = species
         self.concentration = concentration      # (mmol) = (mmol/L) = (mol/m3)
         self.conductivity = conductivity
-        self.permittivity = epsr*8.854e-12
-        self.pH = pH
+        if permittivity:
+            self.permittivity = permittivity*8.854e-12
+        if pH:
+            self.pH = pH
+            self.c_H = 10**-pH * 1e3          # (mmol) = (mmol/L) = (mol/m3); (concentration of Hydrogen ions (H+)
 
         # mechanical
         self.density = density
         self.viscosity = viscosity
-        self.T = temperature
+        self.temperature = temperature
