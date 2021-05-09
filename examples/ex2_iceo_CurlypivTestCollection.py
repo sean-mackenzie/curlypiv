@@ -22,7 +22,7 @@ from curlypiv.utils.calculate_ICEO import calculate_ICEO
 # --- Load file paths ---
 dirPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test'
 gridPath = join(dirPath, 'setup/calibration/microgrid/grid_10umLines_50umSpacing/50X')
-flatfieldPath = join(dirPath, 'setup/calibration/illumination/flatfield.tif')
+flatfieldPath = None #join(dirPath, 'setup/calibration/illumination/flatfield.tif')
 darkfieldPath = join(dirPath, 'setup/calibration/cameraNoise/darkfield/darkfield.tif')
 iceoStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-stats.csv'
 iceoMergeStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-merge-stats.csv'
@@ -47,12 +47,26 @@ apply_darkfield_correction = True
 # objective
 obj_show_depth_plot = False
 obj_save_depth_plot = False
+# iceo stats
+plot_iceo = False
 # examine testset
-examine_testset = True
+examine_testset = False
 examine_testset_raw = False
 img_animate = 'filtered'
 # piv
-backSub_init_frames = 50
+img_piv = 'filtered'
+window_size1 = 128
+window_size2 = 64
+piv_init_frame = 250
+backSub_init_frames = 10
+piv_num_analysis_frames = 300
+save_text=False
+vectors_on_image=True
+show_plot=False
+save_plot=False
+save_u_mean_plot=True
+img_piv_plot = img_piv
+save_plot_path = join(dirPath, 'results', 'piv-plots')
 
 # low level materials
 sio2_channel = material_solid(name='SiO2', zeta=-0.0826, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=500e-6, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6)         # Ref: 2/13/21, ZuPIV of SiO2 w/ 100 uM KCl
@@ -100,26 +114,23 @@ frameid = '_X'
 bpespecs = {
     'bxmin': 172,  # x = 0 is the left of the image
     'bxmax': 251,
-    'bymin': 10,
-    'bymax': 400,  # y = 0 is the bottom of the image
-    'multiplier': 2
+    'bymin': 12,
+    'bymax': 398,  # y = 0 is the bottom of the image
+    'multiplier': 2.
 }
-
 cropspecs = {
-    'xmin': 120,  # x = 0 is the left of the image
-    'xmax': 320,
+    'xmin': 115,  # x = 0 is the left of the image
+    'xmax': 308,
     'ymin': 10,
     'ymax': 400  # y = 0 is the bottom of the image
 }
-
 filterspecs = {
     'denoise_wavelet': {'args': [], 'kwargs': dict(method='BayesShrink', mode='soft', rescale_sigma=True)},
     'median': {'args': [disk(3)]},
     'gaussian': {'args': [2]},
     'equalize_adapthist': {'args': [], 'kwargs': dict(kernel_size=int(np.round(bpe_iceo_bpe.length*1e6/x50_objective.pixel_to_micron/6)))},
-    'rescale_intensity': {'args': [(70, 99.25), ('dtype')]} # 70, 99.999
+    'rescale_intensity': {'args': [(60, 99.9), ('dtype')]} # 70, 99.999
 }
-
 resizespecs = {
     'method': 'pyramid_expand',
     'scale': 2
@@ -142,48 +153,93 @@ testCol = CurlypivTestCollection(collectionName=name, dirpath=dirPath, file_type
                                  backsub_specs=backsubspecs
                                  )
 testSetup = CurlypivTestSetup(name='bpe-iceo', chip=bpe_iceo_chip, optics=bpe_iceo_optics, fluid_handling_system=fhs)
+
+# --- calculate ICEO ---
+iceo_stats, header = calculate_ICEO(testSetup=testSetup, testCol=testCol, plot_figs=plot_iceo, savePath=None)
+header = header.split(',')
+
+
 # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
 
-# ---------- ----------  STEP 3: LOAD EXAMPLE (TEST) IMAGE COLLECTION ----------  ----------
-# initialize
-loc = 1
-test = (150.0, 2500.0)
-run = 2
-seq = 1
-num_files_in_testset = 200
+if examine_testset:
+    # ---------- ----------  STEP 3: LOAD EXAMPLE (TEST) IMAGE COLLECTION ----------  ----------
 
-# load a set of images for testing
-testCol.add_img_testset(loc=loc, test=test, run=run, seq=seq)
-# get subset of images for compactness
-testCol.img_testset.get_subset(num_files=num_files_in_testset)
-# ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
+    # import modules
 
+    # initialize
+    loc = 1
+    test = (150.0, 2500.0)
+    run = 2
+    seq = 1
+    num_files_in_testset = 200
 
-# ----------  STEP 4: PERFORM FLAT FIELD CORRECTION AND CALCULATE IMAGE QUALITY ----------  ----------
-if apply_flatfield_correction:
-    # apply flatfield correction
-    testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.illumination.flatfieldPath,
-                                                   darkfield=testSetup.optics.microscope.ccd.darkfield.img)
-elif apply_darkfield_correction:
-    # apply darkfield correction
-    testCol.img_testset.apply_darkfield_correction(darkfield=testSetup.optics.microscope.ccd.darkfield.img)
+    # load a set of images for testing
+    testCol.add_img_testset(loc=loc, test=test, run=run, seq=seq)
 
-# calculate image quality
-testCol.img_testset.get_img_quality()
-# ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- -----
+    # get subset of images for compactness
+    testCol.img_testset.get_subset(num_files=num_files_in_testset)
+
+    # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
 
 
-# ----------  STEP 6: TEST BACKGROUND SUBTRACTOR ON FILTERED IMAGES ----------  ----------
+    # ----------  STEP 4: PERFORM FLAT FIELD CORRECTION AND CALCULATE IMAGE QUALITY ----------  ----------
+    if apply_flatfield_correction:
+        # apply flatfield correction
+        testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.illumination.flatfieldPath,
+                                                       darkfield=testSetup.optics.microscope.ccd.darkfield.img)
+    elif apply_darkfield_correction:
+        # apply darkfield correction
+        testCol.img_testset.apply_darkfield_correction(darkfield=testSetup.optics.microscope.ccd.darkfield.img)
 
-# apply image processing
-testCol.img_testset.apply_image_processing(bpespecs, cropspecs, resizespecs, filterspecs, backsubspecs)
+    # calculate image quality
+    testCol.img_testset.get_img_quality()
 
-# calculate background
-testCol.img_testset.apply_background_subtractor(bg_method=backsubspecs['bg_method'], apply_to='filtered')
+    # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
 
-# animate background
-img_animate = 'filtered'
-testCol.img_testset.animate_images(img_animate=img_animate, start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg)) #
+    if examine_testset_raw:
+        # ----------  STEP 5: TEST BACKGROUND SUBTRACTOR ON RAW IMAGES ----------  ----------
 
-# ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
-j =1
+        # calculate background
+        testCol.img_testset.apply_background_subtractor(bg_method='KNN', apply_to='raw')
+
+        # animate background
+        testCol.img_testset.animate_images(start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg))
+
+        # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
+
+
+    # ----------  STEP 6: TEST BACKGROUND SUBTRACTOR ON FILTERED IMAGES ----------  ----------
+
+    # initialize
+
+    # apply image processing
+    testCol.img_testset.apply_image_processing(bpespecs, cropspecs, resizespecs, filterspecs, backsubspecs)
+
+    # calculate background
+    testCol.img_testset.apply_background_subtractor(bg_method=backsubspecs['bg_method'], apply_to='filtered')
+
+    # animate background
+    img_animate = 'filtered'
+    testCol.img_testset.animate_images(img_animate=img_animate, start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg)) #
+
+    # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
+
+
+# ----------  STEP 5: TEST PIV ON FULL DATASET FILTERED IMAGES ----------  ----------
+
+pivSetup = CurlypivPIVSetup(name='testPIV', save_text=save_text, save_plot=save_plot, show_plot=show_plot,
+                            save_plot_path=save_plot_path, vectors_on_image=vectors_on_image,
+                            testCollection=testCol, testSetup=testSetup, win1=window_size1, win2=window_size2,
+                            calculate_zeta=False, replace_Nans_with_zeros=True, save_u_mean_plot=save_u_mean_plot)
+
+piv = CurlypivPIV(testCollection=testCol, img_piv=img_piv, img_piv_plot=img_piv_plot, testSetup=testSetup,
+                  pivSetup=pivSetup, bpespecs=bpespecs, cropspecs=cropspecs, filterspecs=filterspecs, resizespecs=resizespecs,
+                  backsubspecs=backsubspecs, init_frame=piv_init_frame, num_analysis_frames=piv_num_analysis_frames, backSub_init_frames=backSub_init_frames,
+                  piv_mask='bpe')
+
+
+piv.piv_analysis(level='all')
+
+
+# import modules
+

@@ -18,11 +18,11 @@ from curlypiv.utils.calculate_ICEO import calculate_ICEO
 
 # --- Load file paths ---
 dirPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test'
-gridPath = join(dirPath, 'setup/calibration/microgrid/grid_10umLines_50umSpacing/50X')
+gridPath = join(dirPath, 'setup/calibration/microgrid')
 illumPath = join(dirPath, 'setup/calibration/illumination/flatfieldPath.tif')
 camNoisePath = None
-iceoStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-stats.csv'
-iceoMergeStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-merge-stats.csv'
+iceoStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-stats-copySquires.csv'
+iceoMergeStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-merge-stats-copySquires.csv'
 
 # --- Test Setup ---
 # grid
@@ -54,8 +54,6 @@ vectors_on_image=True
 show_plot=True
 save_plot=False
 img_piv_plot = img_piv
-# ICEO
-plot_iceo = True
 
 # instantiate CurlypivTestSetup class
 
@@ -64,7 +62,7 @@ sio2_channel = material_solid(name='SiO2', zeta=-0.0826, permittivity=4.6, index
 pdms_channel = material_solid(name='PDMS', zeta=-0.005, permittivity=2.5, index_of_refraction=1.4, conductivity=4e-13, thickness=3e-3, youngs_modulus=500e3, poissons_ratio=0.5, density=0.97, dielectric_strength=20e6)                  # Ref: <http://www.mit.edu/~6.777/matprops/pdms.htm>
 sio2_chip = material_solid(name='SiO2', transparency=0.99, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=500e-6, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6)       # Ref: None
 gold_bpe = material_solid(name='Au', transparency=0.5, conductivity=22e-9)        # Ref: 4/6/21, 30 nm Au - 75% @ 50X, 51% @ 20X
-sio2_dielectric = material_solid(name='SiO2', zeta=-0.08, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=5e-9, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6, Ka=6, reaction_site_density=5)          # Ref: 2/13/21, ZuPIV of SiO2 w/ 100 uM KCl
+sio2_dielectric = material_solid(name='SiO2', zeta=-0.08, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=33e-9, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6, Ka=6, reaction_site_density=5)          # Ref: 2/13/21, ZuPIV of SiO2 w/ 100 uM KCl
 alkane_thiol = material_solid(name='Alkane-thiol', transparency=0.99)    # Ref: None
 polystyrene = material_solid(name='Polystyrene', transparency=0.9, zeta=-0.045, index_of_refraction=1.59, density=1.05e3, permittivity=2.6) # Ref: 3/4/21 BNL Zetasizer
 tygon = material_solid(name='Tygon', zeta=-0.001)                 # Ref: None
@@ -113,7 +111,7 @@ testCol = CurlypivTestCollection(collectionName=name, dirpath=dirPath, file_type
 testSetup = CurlypivTestSetup(name='bpe-iceo', chip=bpe_iceo_chip, optics=bpe_iceo_optics, fluid_handling_system=fhs)
 
 # --- calculate ICEO ---
-iceo_stats, header = calculate_ICEO(testSetup=testSetup, testCol=testCol, plot_figs=plot_iceo, savePath=None)
+iceo_stats, header = calculate_ICEO(testSetup=testSetup, testCol=testCol, plot_figs=True, savePath=iceoStatsPath)
 header = header.split(',')
 
 # read Squires output data from .csv
@@ -157,7 +155,7 @@ buff = df_iceo.buffers.unique().tolist()[0]
 buff_min = df_iceo.b_conc.min()*0.5
 buff_max = df_iceo.b_conc.max()*1.5
 diel = df_iceo.dielectrics.unique().tolist()[0]
-diel_thick_max = df_iceo.d_thick.max()*10
+diel_thick_max = df_iceo.d_thick.max()*1.25
 
 
 # filter electric fields

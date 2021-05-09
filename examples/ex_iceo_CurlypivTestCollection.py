@@ -19,14 +19,14 @@ frameid = '_X'
 
 # load calibration files
 gridPath = None
-illumPath = 'flatfield.tif'
+illumPath = 'flatfieldPath.tif'
 camNoisePath = None
 
 cropspecs = {
-    'xmin': 50,  # x = 0 is the left of the image
-    'xmax': 146,
-    'ymin': 300,
-    'ymax': 480  # y = 0 is the bottom of the image
+    'xmin': 0,  # x = 0 is the left of the image
+    'xmax': 256,
+    'ymin': 0,
+    'ymax': 256  # y = 0 is the bottom of the image
 }
 
 filterspecs = {
@@ -36,7 +36,7 @@ filterspecs = {
 
 resizespecs = {
     'method': 'pyramid_expand',
-    'scale': 3
+    'scale': 2
 }
 
 backsubspecs = {
@@ -64,7 +64,7 @@ from curlypiv.CurlypivTestSetup import reservoir, optics, fluid_handling_system,
 # determine actions
 # grid
 grid_show=False
-# flatfield
+# flatfieldPath
 calculateIllumDistribution = True
 illum_save_txt = False
 illum_save_plot = True
@@ -74,7 +74,7 @@ illum_show_plot = True
 darkfield_show_image = False
 darkfield_save_image = False
 darkfield_save_plot = False
-# flatfield correction
+# flatfieldPath correction
 apply_flatfield_correction = False
 # objective
 obj_show_depth_plot = False
@@ -82,9 +82,9 @@ obj_save_depth_plot = False
 # examine testset
 examine_testset = False
 examine_testset_raw = False
-img_animate = 'bgs'
+img_animate = 'filtered'
 # piv
-img_piv = 'bgs'
+img_piv = 'filtered'
 piv_num_analysis_frames = 30
 save_text=False
 vectors_on_image=True
@@ -157,8 +157,8 @@ if examine_testset:
     # initialize
 
     if apply_flatfield_correction:
-        # apply flatfield correction
-        testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.illumination.flatfield,
+        # apply flatfieldPath correction
+        testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.illumination.flatfieldPath,
                                                        darkfield=testSetup.optics.microscope.ccd.darkfield.img)
 
     # calculate image quality
@@ -177,7 +177,7 @@ if examine_testset:
         testCol.img_testset.apply_background_subtractor(bg_method='KNN', apply_to='raw')
 
         # animate background
-        testCol.img_testset.animate_background_subtractor(start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg))
+        testCol.img_testset.animate_images(start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg))
 
         # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
 
@@ -196,7 +196,7 @@ if examine_testset:
     testCol.img_testset.apply_background_subtractor(bg_method='KNN', apply_to='filtered')
 
     # animate background
-    testCol.img_testset.animate_background_subtractor(img_animate=img_animate, start=0, stop=200, savePath=join(testCol.dirpath,testCol.dir_bg)) #
+    testCol.img_testset.animate_images(img_animate=img_animate, start=0, stop=200, savePath=join(testCol.dirpath, testCol.dir_bg)) #
 
     # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
 

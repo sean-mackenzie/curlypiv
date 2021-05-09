@@ -17,9 +17,9 @@ from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest, CurlypivT
 
 # load image
 name = 'testCol'
-base_path = '/Users/mackenzie/Desktop/iceo-analysis'
+base_path = '/Users/mackenzie/Desktop/04.23.21-iceo-test'
 img_type = '.tif'
-testid = ('E','Vmm')
+testid = ('V','channel', 'f', 'Hz')
 runid = ('run', 'num')
 seqid = ('test_', '_X')
 frameid = '_X'
