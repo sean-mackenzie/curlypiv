@@ -61,7 +61,7 @@ class CurlypivPIVSetup(object):
         self.colorMap = 'plasma'
         self.colorNorm = colors.Normalize(vmin=0, vmax=50)
         self.alpha = 1
-        self.scalebar_microns = 25 # units are microns
+        self.scalebar_microns = 250 # units are microns
         self.dpi = 200
 
         # camera
@@ -106,7 +106,7 @@ class CurlypivPIVSetup(object):
         self.settings.sig2noise_method = 'peak2peak'  # Method to compute SNR: 'peak2peak' or 'peak2mean'
         self.settings.sig2noise_mask = 3  # (2 - 5) exclusion distance between highest peak and second highest peak in correlation map
         # min/max velocity vectors for validation
-        self.settings.MinMax_U_disp = (-self.char_u / 3, self.char_u / 3)  # filter u (units: pixels/frame)
+        self.settings.MinMax_U_disp = (-self.char_u / 7.5, self.char_u / 7.5)  # filter u (units: pixels/frame)
         self.settings.MinMax_V_disp = (-self.char_u / 50, self.char_u / 50)  # filter v (units: pixels/frame)
         # vector validation
         self.settings.validation_first_pass = True  # Vector validation of first pass
@@ -116,7 +116,7 @@ class CurlypivPIVSetup(object):
         self.settings.median_threshold = 2.75  # median validation threshold
         self.settings.median_size = 2  # defines the size of the local median kernel
         self.settings.sig2noise_validate = True  # Enables validation by SNR ratio
-        self.settings.sig2noise_threshold = 1.3  # [1.2-1.5] Sets snr threshold for removing vectors (R. D. Keane and R. J. Adrian, Measurement Science & Technology, 1990)
+        self.settings.sig2noise_threshold = 1.2  # [1.2-1.5] Sets snr threshold for removing vectors (R. D. Keane and R. J. Adrian, Measurement Science & Technology, 1990)
         # outlier replacement and smoothing
         self.settings.replace_vectors = True  # Outlier replacement for last pass
         self.replace_Nans_with_zeros = replace_Nans_with_zeros # Outlier replacement where all Nans = 0

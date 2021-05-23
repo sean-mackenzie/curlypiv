@@ -153,7 +153,7 @@ def calculate_ICEO(testSetup, testCol, plot_figs=False, savePath=None):
         Cbuff = calc_buffer_capacitance(Cbuff_input=0.024)
         C_bare_metal = Cdl_linear + Cbuff
         total_capacitance, beta, delta = calc_total_capacitance(eps_fluid=eps_fluid, lamb=lamb, Cdl=Cdl_linear, Cd=Cd, Cbuff=Cbuff)
-        tau = calc_RC_time(capacitance=Cdl_linear, L_bpe=L_bpe, sigma=sigma)
+        tau = calc_RC_via_bulk_time(capacitance=Cdl_linear, L=L_bpe, sigma=sigma)
 
         # calculate background flow
         u_HS = calc_U_HS(eps=eps_fluid, zeta=zeta_wall, E=E, mu=mu)
@@ -352,31 +352,9 @@ def calculate_ICEO(testSetup, testCol, plot_figs=False, savePath=None):
 
     return iceo_stats, header
 
-def calc_brownian_displacement(dt, viscosity, particle_diameter, temperature):
-    """
-    Calculate brownian motion characteristic displacement per dt
-    """
-    kb = 1.3806e-23  # (J/K) Boltzmann constant
-    dx = np.sqrt(2*kb*temperature*dt/(3*np.pi*viscosity*particle_diameter))
-    return dx
 
-def calc_U_HS(eps, zeta, E, mu):
-    """
-    Helmholtz-Smoluchowski
-    """
-    u_eof = -eps*zeta*E/mu
-    return u_eof
+# ---------- INDUCED ZETA AND SLIP VELOCITIES ----------------
 
-def calc_Re(rho, U, l, mu):
-    Re = rho*U*l/mu
-    return Re
-
-def calc_w(f):
-    """
-    angular frequency (w)
-    """
-    w = 2*np.pi*f
-    return w
 
 def calc_lamb(eps_fluid, T, c):
     """
@@ -396,19 +374,10 @@ def calc_zeta_induced(E, x):
     zeta_induced = E*x
     return zeta_induced
 
-def calc_U_slip(eps, E, x, mu):
-    """
-    Slip velocity (DC field)
-    """
-    u_slip = -eps*E**2*x/mu
-    return u_slip
-
-def calc_RC_time(capacitance, L_bpe, sigma):
-    """
-    The RC time constant for charging an electric double layer.
-    """
-    tau = capacitance*L_bpe/sigma
-    return tau
+def calc_zeta_induced_Clamb_Cd(E, x, Cdl, Cd):
+    delta = Cdl/Cd
+    zeta_induced_Clamb_Cd = E*x/(1+delta)
+    return zeta_induced_Clamb_Cd
 
 def calc_zeta_induced_quasisteady(E, x):
     """
@@ -416,6 +385,12 @@ def calc_zeta_induced_quasisteady(E, x):
     """
     zeta_induced_quasisteady = E*x
     return zeta_induced_quasisteady
+
+def calc_zeta_induced_total_capacitance(E, x, Cdl, Cd, Cbuff):
+    beta = Cbuff/Cd
+    delta = Cdl/Cd
+    zeta_induced_total_capacitance = E*x/(1+delta+beta)
+    return zeta_induced_total_capacitance
 
 def calc_U_slip_quasisteady(eps, E, x, mu):
     """
@@ -432,6 +407,20 @@ def calc_zeta_induced_highfreq(Re, E, x, w, t, tau):
     zeta_induced_highfreq = Re*E*x*np.exp(w*t)/(1+tau*w)
     return zeta_induced_highfreq
 
+def calc_U_HS(eps, zeta, E, mu):
+    """
+    Helmholtz-Smoluchowski
+    """
+    u_eof = -eps*zeta*E/mu
+    return u_eof
+
+def calc_U_slip(eps, E, x, mu):
+    """
+    Slip velocity (DC field)
+    """
+    u_slip = -eps*E**2*x/mu
+    return u_slip
+
 def calc_U_slip_highfreq(eps, E, x, mu, tau, f):
     """
     Slip velocity (high frequency)
@@ -440,11 +429,27 @@ def calc_U_slip_highfreq(eps, E, x, mu, tau, f):
     u_slip_highfreq = -eps*E**2*x/(2*mu*(1+tau**2*w**2))
     return u_slip_highfreq
 
-def calc_dielectric_capacitance(eps, d):
-    Cd = eps/d
-    return Cd
+def U_ratio_slip_to_HS(Cdl, Cd, Cbuff):
+    beta = Cbuff/Cd
+    delta = Cdl/Cd
+    u_ratio_slip_to_HS = 1+delta+beta
+    return u_ratio_slip_to_HS
+
+
+
+# ---------- CAPACITANCES ----------------
 
 def calc_linear_doublelayer_capacitance(eps, lamb):
+    """
+    Capacitance due to the linearized electric double layer
+    units: F/m^2
+    Notes:
+        Squires, 2010   -   "linearized electric double layer capacitance"
+        Adjari, 2006    -   "Debye layer capacitance (per unit area) at low voltage"
+    Inputs:
+        eps     =   permittivity of the fluid   (F/m)
+        lamb    =   linearized Debye length     (m)
+    """
     Cdl_linear = eps/lamb
     return Cdl_linear
 
@@ -452,12 +457,36 @@ def calc_nonlinear_doublelayer_capacitance(eps_fluid, lamb, zeta):
     Cdl_nonlinear = (eps_fluid/lamb)*np.cosh(zeta/2)
     return Cdl_nonlinear
 
-def calc_zeta_induced_Clamb_Cd(E, x, Cdl, Cd):
-    delta = Cdl/Cd
-    zeta_induced_Clamb_Cd = E*x/(1+delta)
-    return zeta_induced_Clamb_Cd
+def calc_dielectric_capacitance(eps, d):
+    """
+    Capacitance due to a dielectric coating on the BPE
+    units: F/m^2
+    Notes:
+        Squires, 2010   -   "additional capacitance due to dielectric layer"
+            --> The addition of a dielectric layer (instead of using the Stern layer) is direct experimental control.
+        Adjari, 2006    -   "additional surface capacitance due to dielectric layer"
+    Inputs:
+        eps =   permittivity of dielectric layer    (F/m)
+        d   =   thickness of the dielectric layer   (m)
+    """
+    Cd = eps/d
+    return Cd
 
 def calc_buffer_capacitance(Cbuff_input=0.024, Ns=None, T=None, Ka=None, a_h=None, zeta=None):
+    """
+    Equilibrium buffer capacitance
+    units: F/m^2
+    Notes:
+        Squires, 2010   -   "binding of counterions due to equilibrium reaction at charged electrode surface"
+            --> This acts in parallel to the double layer capacitance
+    Inputs:
+        Cbuff_input:    define a specific buffer capacitance    (F/m)
+        Ns:             surface density of reactive groups      (#/m2)
+        T:              temperature                             (K)
+        Ka:             reaction equilibrium constant           (ranges between 2-6)
+        a_h:            bulk concentration of protons           (#/m3)
+        zeta:           zeta potential at surface               (V)
+    """
     e = -1.602e-19          # (C) charge of an electron
     kb = 1.3806e-23         # (J/K) Boltzmann constant
     if Cbuff_input is None:
@@ -466,26 +495,300 @@ def calc_buffer_capacitance(Cbuff_input=0.024, Ns=None, T=None, Ka=None, a_h=Non
         Cbuff = Cbuff_input     # (F/m2) taken from Squires but should be fit to data.
     return Cbuff
 
-def calc_zeta_induced_total_capacitance(E, x, Cdl, Cd, Cbuff):
-    beta = Cbuff/Cd
-    delta = Cdl/Cd
-    zeta_induced_total_capacitance = E*x/(1+delta+beta)
-    return zeta_induced_total_capacitance
+def calc_doublelayer_dielectric_capacitance(eps_fluid, lamb, Cdl):
+    """
+    Total capacitance due to Debye layer and surface capacitance (Stern layer or dielectric coating)
+    units: F/m^2
+    Notes:
+        Adjari, 2006    -   "The overall capacitance per unit area in the Debye-Huckel limit"
+    Inputs:
+        eps_fluid   =   permittivity of the fluid                   (F/m)
+        lamb        =   Debye length                                (m)
+        Cdl         =   Capacitance due to Stern/dielectric layer   (F/m^2)
+    """
+    C_total_Adjari = (1/(1+(eps_fluid/lamb/Cdl)))*(eps_fluid/lamb)
+    return C_total_Adjari
 
 def calc_total_capacitance(eps_fluid, lamb, Cdl, Cd, Cbuff):
+    """
+    Total capacitance from Debye layer, dielectric layer, and buffer
+    """
     beta = Cbuff/Cd
     delta = Cdl/Cd
     total_capacitance = (eps_fluid/lamb)*((1+beta/delta)/(1+delta+beta))
     return total_capacitance, beta, delta
 
-def U_ratio_slip_to_HS(Cdl, Cd, Cbuff):
-    beta = Cbuff/Cd
-    delta = Cdl/Cd
-    u_ratio_slip_to_HS = 1+delta+beta
-    return u_ratio_slip_to_HS
+def calc_delta_capacitance_ratio(capacitance_doublelayer, capacitance_dielectric):
+    """
+    Ratio of the double layer to dielectric capacitance
+    units: ~
+    Notes:
+        Squires, 2010   -   "Ratio of the double layer to dielectric capacitance"
+        Adjari, 2006    -   "Surface capacitance ratio"
+            --> At larger potentials the Debye layer capacitance becomes very large and,
+            --> total capacitance is dominated by the Stern layer only.
+            --> Capacitance ratios: C_total < C_debye layer < C_dielectric layer
+    """
+    delta = capacitance_doublelayer / capacitance_dielectric
+    return delta
+
+def calc_beta_capacitance_ratio(capacitance_buffer, capacitance_dielectric):
+    """
+    Ratio of the buffer capacitance to the dielectric capacitance
+    units: ~
+    Notes:
+        Squires, 2010   -   "   "
+    """
+    beta = capacitance_buffer / capacitance_dielectric
+    return beta
+
+
+
+
+
+# ------------ TIME SCALES  ------------------
+
+def calc_Debye_charging_time(eps_fluid, sigma):
+    """
+    The Debye charging time is the time required to charge the Debye layer
+    units: s
+    Notes:
+        Adjari, 2006    -   "Debye time scale"
+    """
+    tau_debye = eps_fluid / sigma
+    return tau_debye
+
+def calc_RC_via_bulk_time(capacitance, L, sigma):
+    """
+    Characteristic time for induced double layer to form considering a capacitance.
+    units: s
+    Notes:
+        Squires, 2010   -   "characteristic time for induced double layer to form"
+    Inputs:
+        capacitance:    F/m^2    C^2*s^2/kg/m^2/m^2       (total capacitance of double layer system)
+        L_bpe:          m        m       (characteristic length of BPE)
+        sigma:          S/m      C^2*s/kg/m^2/m       (conductivity of electrolyte/buffer)
+    Outputs:
+        tau:            s
+    """
+    tau = capacitance*L/sigma
+    return tau
+
+def calc_RC_via_bulk_HV_time(capacitance, L, sigma):
+    """
+    Characteristic charging and relaxation time of the electric double layer through the bulk electrolyte
+    units: s
+    Notes:
+        Adjari, 2006    -   "Relaxation time at high voltages"
+            --> At high voltages, the Stern/dielectric layer dominates the capacitance of the
+            --> double layer and the relaxation time changes
+    """
+
+    tau_debye_highvoltage = capacitance * L / sigma
+    return tau_debye_highvoltage
+
+def calc_Debye_charging_via_Faradaic_time(charge_transfer_resistance, capacitance_dielectric):
+    """
+    Characteristic time for (de)charging the Debye layer through Faradaic reactions
+    units: s
+    Notes:
+        Adjari, 2006    -   "Characteristic time for (de)charging the Debye layer through Faradaic reactions"
+            --> When Rct << R0, this can be significantly faster than the Ohmic charging
+            --> acting effectively as a "short circuit" on the Debye layer
+    """
+    tau_charge_transfer = charge_transfer_resistance * capacitance_dielectric
+    return tau_charge_transfer
+
+def calculate_Debye_frequency(sigma, eps_fluid):
+    """
+    The Debye frequency is the inverse of the Debye layer charging time (Adjari, 2006).
+    units: Hz
+    Notes:
+        Adjari, 2006    -   minimum frequency the Debye layer can fully charge
+            --> Any driving frequency should be well below this.
+    Inputs:
+        sigma       =   conductivity of buffer/electrolyte      (S/m)
+        eps_fluid   =   permittivity of buffer/electrolyte      (F/m)
+    """
+    w_D = sigma / eps_fluid
+    return w_D
+
+
+# ----------- CURRENT AND CHARGE TRANSFER -----------------
+def calc_channel_current(E, sigma, A):
+    """
+    Calculate channel current
+    """
+    I = E * sigma * A
+    return I
+
+def calculate_q_debye_linear(eps_fluid, lambda_d, zeta):
+    """
+    Calculate the charge accumulated in the Debye layer
+    (Adjari, 2006)
+    units: Coulombs
+    Notes:
+
+    """
+    q = -eps_fluid * zeta / lambda_d
+    return q
+
+def calculate_q_debye_nonlinear(eps_fluid, zeta, c, T):
+    """
+    Calculate the charge accumulated in the Debye layer
+    (Adjari, 2006)
+    units: Coulombs
+    Notes:
+        For voltages below the thermal voltage (Debye Huckel limit)
+    """
+    kb = 1.3806e-23     # (J/K) Boltzmann constant
+    e = -1.602e-19      # (C) charge of an electron
+    Na = 6.022e23       # (1/mol) Avogadro's number
+    z = 1               # () valence of electrolyte
+
+    q = -1*np.sign(zeta)*np.sqrt(2*eps_fluid*kb*T*((c*Na*(np.exp(-z*e*zeta/kb/T)-1))+(c*Na*(np.exp(-z*-e*zeta/kb/T)-1))))
+    return q
+
+def calculate_q_debye_nonlinear_hv(eps_fluid, lambda_d, zeta, T):
+    """
+    Calculate the charge accumulated in the Debye layer for larger voltages
+    (Adjari, 2006)
+    units: Coulombs
+    Notes:
+        For larger voltages
+    """
+    kb = 1.3806e-23     # (J/K) Boltzmann constant
+    e = -1.602e-19      # (C) charge of an electron
+    Na = 6.022e23       # (1/mol) Avogadro's number
+    z = 1               # () valence of electrolyte
+
+    q = (-eps_fluid/lambda_d)*(2*kb*T/e)*np.sinh(e*zeta/(2*kb*T))
+    return q
+
+
+
+# ----------- CHANNEL-WISE VARIABLES -----------------
+
+# Bulk fluid potential due to externally applied electric field
+def calc_channel_fluid_potential(E, L_channel, L_bpe):
+    """
+    Calculate the fluid potential (phi) as a function of channel location
+    units: V
+    """
+    channel_start = 0
+    channel_stop = L_channel
+
+    bpe_start = L_channel/2 - L_bpe/2
+    bpe_stop = L_channel/2 + L_bpe/2
+
+    bpe_step = L_bpe / 100
+    channel_step = (L_channel - bpe_stop) / 100
+
+
+    L_pre_bpe = np.linspace(channel_start, bpe_start, num=100, endpoint=True)
+    L_bpe = np.linspace(bpe_start, bpe_stop, num=100, endpoint=True)
+    L_post_bpe = np.linspace(bpe_stop+channel_step, channel_stop, endpoint=False)
+
+    L = np.concatenate((L_pre_bpe, L_bpe, L_post_bpe), axis=1)
+
+    phi_channel = E * (1 - L/L_channel)
+    return phi_channel
+
+def calc_V_drop_lamb_dielectric(zeta, q_debye, C_dl, phi_channel):
+    """
+    THIS IS WRONG - THIS IS WRONG - THIS IS WRONG
+    Calculate the voltage drop across the Stern/dielectric and Debye layers throughout the channel
+    units: V
+    """
+    V_drop_lamb_dielectric = zeta - q_debye/C_dl + phi_channel
+    return V_drop_lamb_dielectric
+
+
+
+
+# ----------- ELECTROCHEMISTRY ----------------
+# Exchange current denisty through the BPE
+def calc_bpe_exchange_current(K_standard_rate_constant, c_bulk_oxidized, c_bulk_reduced, alpha_transfer_coefficient=0.5):
+    """
+    The exchange current density at a specific BPE location
+    units: Coulombs/s*m2
+    Notes:
+        K_standard_rate_constant: usually between 2 and 6
+        c_bulk (oxidized and reduced) can be taken as just the concentration of the bulk species
+        alpha is set to 1/2 in Adjari, 2006
+    """
+    e = -1.602e-19  # (C) charge of an electron
+
+    j_0 = e * K_standard_rate_constant * c_bulk_reduced**alpha_transfer_coefficient * c_bulk_oxidized**(1-alpha_transfer_coefficient)
+    return j_0
+
+# Charge transfer resistance through the BPE
+def calc_bpe_charge_transfer_resistance(j_0_bpe, T):
+    """
+    The area specific charge transfer resistance through the BPE
+    units: Ohm*m2
+    Notes:
+
+    """
+    kb = 1.3806e-23     # (J/K) Boltzmann constant
+    e = -1.602e-19      # (C) charge of an electron
+
+    R_ct = kb * T / j_0_bpe / e
+    return R_ct
+
+# Charge transfer resistance through bulk electrolyte
+def calc_bpe_bulk_electrolyte_resistance(characteristic_length, sigma):
+    """
+    The area specific charge transfer resistance through the bulk electrolyte
+    units: Ohm*m2
+    Notes:
+        Adjari, 2006    -   "(area specific) bulk electrolyte resistance"
+        Squires, 2010   -   does not explicitly define this but uses the same equation
+    Inputs:
+        char_length:    (m)     length of  BPE
+        sigma           (S/m)   conductivity of electrolyte/buffer
+    Output:
+        Resistance:     Ohm*m^2
+    """
+    R_0 = characteristic_length / sigma
+    return R_0
+
+# Faradaic conductance
+def calc_faradaic_conductance(R_0, R_ct, tau_0, tau_ct):
+    """
+    Faradaic conductance - a measure of the facility of the electrode reaction
+    units: ~
+    Notes:
+        Adjari, 2006    -   "a measure of the facility of the electrode reaction"
+    """
+    K_resistance = R_0 / R_ct
+    K_tau = tau_0 / tau_ct
+    # NOTE - both K's should be equal
+    return K_resistance, K_tau
+
+
 
 
 # ----- CALCULATE PIV SPECIFIC QUANTITIES -----
+
+def calc_brownian_displacement(dt, viscosity, particle_diameter, temperature):
+    """
+    Calculate brownian motion characteristic displacement per dt
+    """
+    kb = 1.3806e-23  # (J/K) Boltzmann constant
+    dx = np.sqrt(2*kb*temperature*dt/(3*np.pi*viscosity*particle_diameter))
+    return dx
+
+def calc_Re(rho, U, l, mu):
+    Re = rho*U*l/mu
+    return Re
+
+def calc_w(f):
+    """
+    angular frequency (w)
+    """
+    w = 2*np.pi*f
+    return w
 
 def calc_particle_image_diameter(magnification, particle_diameter, wavelength, numerical_aperture,
                                  index_of_refraction):

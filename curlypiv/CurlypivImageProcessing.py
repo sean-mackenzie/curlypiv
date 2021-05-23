@@ -80,9 +80,27 @@ def img_resize(img, method='rescale', scale=2, preserve_range=True):
 def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_filepath=None):
     """
     This subtracts a background input image from the signal input image.
-    :param bg_method:
-    :param bg_img:
+    :param img:         the image to calculate and subtract the background from
+    :param img:         if algorithmic background subtraction is used, it is stored here.
+    :param bg_method:   the method used for background subtraction
+    :param bg_filepath: if manual background subtraction is used, the filepath leads to the background image.
     :return:
+        img_bg      -   the background image                                        (non-background is set to zero)
+        img_bgs     -   the background subtracted                                   (background is set to zero)
+        img_mask    -   the binary mask used to calculate the background image      (some post-processing)
+        img_masked  -   the binary mask after post-processing to smooth out         (non-binary array)
+
+    Process Pipeline:
+        1. if this manual or algorithmic subtraction
+            A: if manual background subtraction
+                1. read the background image filepath into a numpy array.
+                2. subtract the background image from the input image.
+                3. assign img_bg, img_bgs, img_mask, and img_masked variables.
+            B: if algorithmic background subtraction
+                1. check the image datatype and change to 'uint8' if necessary.
+                2. apply the background subtractor to the image.
+                3. apply filtering to smooth background subtractor mask.
+                3. assign img_bg, img_bgs, img_mask, and img_masked variables.
     """
     mask_manual = False
 
@@ -96,17 +114,6 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
 
     if backgroundSubtractor is not None:
         mask = backgroundSubtractor.apply(img_backSub)
-
-        # read the backgroundSubtractor
-        #bs_Dist2Threshold = backgroundSubtractor.getDist2Threshold()
-        #bs_kNNSamples = backgroundSubtractor.getkNNSamples()
-        #bs_NSamples = backgroundSubtractor.getNSamples()
-
-        # print the backgroundSubtractor
-        #print("Distance to threshold: {}".format(bs_Dist2Threshold))
-        #print("k NN samples: {}".format(bs_kNNSamples))
-        #print("Number of samples: {}".format(bs_NSamples))
-
     else:
         if bg_method is None:
             #mask = img_backSub > np.mean(img_backSub) * 1.75
@@ -222,9 +229,14 @@ def apply_darkfield_correction(img_list, darkfield):
         img.apply_darkfield_correction(darkfield)
 
 def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
+    # apply manual or algorithmic background subtractor
+    if bg_method == 'min':
+        print('yes')
     for img in img_list.values():
         img.image_subtract_background(image_input=apply_to, backgroundSubtractor=backgroundSubtractor, bg_method=bg_method, bg_filepath=bg_filepath)
 
+def calculate_background_image(img_list, bg_method='min', apply_to='filtered', bg_filepath=None):
+    baseline_img = 1
 
 def analyze_img_quality(img_list):
     means = []
