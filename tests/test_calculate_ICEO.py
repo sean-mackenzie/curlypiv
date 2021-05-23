@@ -22,7 +22,7 @@ gridPath = join(dirPath, 'setup/calibration/microgrid/grid_10umLines_50umSpacing
 illumPath = join(dirPath, 'setup/calibration/illumination/flatfieldPath.tif')
 camNoisePath = None
 iceoStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-stats.csv'
-iceoMergeStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-merge-stats.csv'
+iceoMergeStatsPath = '/Users/mackenzie/Desktop/04.23.21-iceo-test/results/iceo-stats/iceo-merge-stats2.csv'
 
 # --- Test Setup ---
 # grid
@@ -64,7 +64,7 @@ sio2_channel = material_solid(name='SiO2', zeta=-0.0826, permittivity=4.6, index
 pdms_channel = material_solid(name='PDMS', zeta=-0.005, permittivity=2.5, index_of_refraction=1.4, conductivity=4e-13, thickness=3e-3, youngs_modulus=500e3, poissons_ratio=0.5, density=0.97, dielectric_strength=20e6)                  # Ref: <http://www.mit.edu/~6.777/matprops/pdms.htm>
 sio2_chip = material_solid(name='SiO2', transparency=0.99, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=500e-6, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6)       # Ref: None
 gold_bpe = material_solid(name='Au', transparency=0.5, conductivity=22e-9)        # Ref: 4/6/21, 30 nm Au - 75% @ 50X, 51% @ 20X
-sio2_dielectric = material_solid(name='SiO2', zeta=-0.08, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=5e-9, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6, Ka=6, reaction_site_density=5)          # Ref: 2/13/21, ZuPIV of SiO2 w/ 100 uM KCl
+sio2_dielectric = material_solid(name='SiO2', zeta=-0.08, permittivity=4.6, index_of_refraction=1.5, conductivity=1e-18, thickness=5e-9, youngs_modulus=71.7e9, poissons_ratio=0.17, density=2.203e3, dielectric_strength=470e6, Ka=6, Kb=-2, reaction_site_density=5)          # Ref: 2/13/21, ZuPIV of SiO2 w/ 100 uM KCl
 alkane_thiol = material_solid(name='Alkane-thiol', transparency=0.99)    # Ref: None
 polystyrene = material_solid(name='Polystyrene', transparency=0.9, zeta=-0.045, index_of_refraction=1.59, density=1.05e3, permittivity=2.6) # Ref: 3/4/21 BNL Zetasizer
 tygon = material_solid(name='Tygon', zeta=-0.001)                 # Ref: None
@@ -149,10 +149,10 @@ df_iceo.b_eps = df_iceo.b_eps / 8.854e-12           # (epsr*eps0) --> (epsr)
 
 
 # filter data frames
-Emin = df_iceo.electric_fields.min()*0.25
-Emax = df_iceo.electric_fields.max()*2
-fmin = df_iceo.frequencys.min()*0.25
-fmax = df_iceo.frequencys.max()*1.25
+Emin = df_iceo.electric_fields.min()*0.125
+Emax = df_iceo.electric_fields.max()*2.5
+fmin = df_iceo.frequencys.min()*0.15
+fmax = df_iceo.frequencys.max()*5
 buff = df_iceo.buffers.unique().tolist()[0]
 buff_min = df_iceo.b_conc.min()*0.5
 buff_max = df_iceo.b_conc.max()*1.5

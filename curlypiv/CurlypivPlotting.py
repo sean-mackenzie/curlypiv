@@ -64,7 +64,7 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
 
 
         # plotting
-        fig, ax = plt.subplots(figsize=(7,4))
+        fig, ax = plt.subplots(figsize=(6,4))
 
         # plot data
         ax.plot(x, test_u_mean_columns, linewidth=2)
@@ -75,22 +75,23 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
         ax.plot(u_inner_x, fit_inner_vals, label=r'$Slope_{BPE center}$', color='indianred', alpha=1, linestyle='solid', linewidth=4)
 
         if testname is not None:
-            title = 'E:{}V/mm, f:{}kHz'.format(int(np.round(testname[0], 0)), int(testname[1]*1e-3))
+            title = 'E:{}V/mm, f:{}kHz'.format(int(np.round(testname[0], 0)), (testname[1]*1e-2))
         else:
-            title = 'E{}Vmm f{}kHz'.format(int(np.round(test.testname[0], 0)), int(test.testname[1]*1e-3))
+            title = 'E{}Vmm f{}kHz'.format(int(np.round(test.testname[0], 0)), (test.testname[1]*1e-2))
 
-        ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=8)
+        ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$u_{x,mean}$ ($\mu m/s$)')
-        ax.set_ylim(bottom=-10, top=15)
+        ax.set_ylim(bottom=-15, top=15)
 
 
         # plot zero line
         #ax.axhline(y=0, xmin=x[0], xmax=x[-1], linewidth=3, linestyle='dashed', color='gray', alpha=0.5)
         plt.axhline(y=0, linewidth=1, linestyle='dashed', color='black', alpha=0.5)
 
-        plt.suptitle((r'$U_{slip, BPE-ICEO}$: ' + title + ' ({} imgs)'.format(num_imgs)))
+        plt.suptitle((r'$U_{slip, BPE-ICEO}$: ' + title + ' ({} imgs)'.format(num_imgs)), fontsize=16)
         plt.legend(prop=fontprops)
+        plt.tight_layout()
 
         if pivSetup.save_u_mean_plot is True:
             pth = pivSetup.save_plot_path
@@ -243,7 +244,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
                 locname=None, testname=None, runname=None, seqname=None):
 
     # initialize plot
-    fig, axes = plt.subplots(nrows=2, gridspec_kw={'height_ratios': [1, 4]})
+    fig, axes = plt.subplots(nrows=2, figsize=(5,8), gridspec_kw={'height_ratios': [1, 5]})
     ax = axes.ravel()
 
     if np.mean(u) < 0:
@@ -260,7 +261,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
     pux = u_mean_columns
     ax[0].plot(px, pux)
 
-    ax[0].set_ylim(bottom=-10, top=10)
+    ax[0].set_ylim(bottom=-15, top=15)
     ax[0].set_xlabel('x (window)')
     ax[0].set_ylabel(r'$u_{avg} (\mu m/s)$')
 
@@ -315,13 +316,14 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         # plot the vector field
         width=1.5
         Q = ax[1].quiver(x, y, u, v, [M],
-                      pivot='mid', angles='xy',
+                      units='xy', angles='xy', pivot='mid',
+                         scale_units='xy', scale=0.25, width=4,
                       cmap=pivSetup.colorMap, alpha=pivSetup.alpha, norm=pivSetup.colorNorm)
         cbar = fig.colorbar(Q, extend='max', fraction=0.1, shrink=0.5)
         cbar.set_label(label=r'$\frac{\mu m}{s}$', size=16)
         cbar.ax.tick_params(labelsize=14)
 
-        plt.tight_layout()
+        #plt.tight_layout()
 
         if pivSetup.save_plot is True:
             pth = pivSetup.save_plot_path

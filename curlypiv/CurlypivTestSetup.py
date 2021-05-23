@@ -364,11 +364,18 @@ class fluorescent_particles(object):
         :param zeta:
         """
         self.materials=materials
-        self.diameter=diameter
-        self.fluorescence_spectra=fluorescence_spectra
         self.concentration=concentration
         self.electrophoretic_mobility=electrophoretic_mobility
         self.zeta=zeta
+        self.diameter=diameter
+        if diameter:
+            k_b = 1.3806e-23
+            T=298
+            mu=0.001
+            self.diffusivity = k_b*T/(6*np.pi*mu*diameter/2)
+
+        self.fluorescence_spectra=fluorescence_spectra
+
 
 class reservoir(object):
 
@@ -456,7 +463,7 @@ class material_solid(object):
 
     def __init__(self,  name=None, zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None,
                  permittivity=None, conductivity=None, thickness=None, youngs_modulus=None, poissons_ratio=None,
-                 density=None, dielectric_strength=None, reaction_site_density=None, Ka=None):
+                 density=None, dielectric_strength=None, reaction_site_density=None, Ka=None, Kb=None):
         """
         everything about a material
         :param transparency:
