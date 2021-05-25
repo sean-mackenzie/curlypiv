@@ -174,11 +174,11 @@ class CurlypivFile(object):
 
         if resizespecs is not None:
             if self._original is None:
-                self._original = self._raw.copy()
+                self._original = self.raw.copy()
 
-            self._raw = img_resize(self._raw, method=resizespecs['method'], scale=resizespecs['scale'])
+            self.raw = img_resize(self.raw, method=resizespecs['method'], scale=resizespecs['scale'])
 
-    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_filepath=None, bg_method="KNN"):
+    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_method="KNN", bg_filepath=None):
         """
         This subtracts a background input image from the signal input image.
         :param bg_method:
@@ -189,18 +189,23 @@ class CurlypivFile(object):
 
         if image_input not in valid_images:
             raise ValueError("{} not a valid image for filtering. Use: {}".format(image_input, valid_images))
+
         elif image_input == 'raw':
             input = self._raw.copy()
-            input = rescale_intensity(input, in_range='image', out_range='uint16')
+
         elif image_input == 'filtered':
             if self._filtered is None:
                 ValueError("This file has no filtered image")
             input = self._filtered.copy()
 
-        (self._bg, self._bgs, self._mask, self._masked) = img_subtract_background(input,
-                                                                                  backgroundSubtractor=backgroundSubtractor,
-                                                                                  bg_filepath=bg_filepath,
-                                                                                  bg_method=bg_method)
+        # perform background subtraction
+        (self._bg, self._bgs, self._mask, self._masked) = img_subtract_background(input, backgroundSubtractor=backgroundSubtractor, bg_filepath=bg_filepath, bg_method=bg_method)
+
+        # apply background subtraction to the input image as well
+        if bg_method in ['min', 'mean']:
+            if self._original is None:
+                self._original = self.raw
+            self.raw = self._bgs
 
     def image_filter(self, filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True):
         """
@@ -291,27 +296,27 @@ class CurlypivFile(object):
             self.apply_darkfield_correction(darkfield)
         else:
             if self._original is None:
-                self._original = self._raw
+                self._original = self.raw
 
-            vmin, vmax = np.percentile(self._raw, (0, 100))
+            vmin, vmax = np.percentile(self.raw, (0, 100))
 
-            img_corrected = (self._raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
+            img_corrected = (self.raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
 
             img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
 
-            self._raw = img_corrected
+            self.raw = img_corrected
 
     def apply_darkfield_correction(self, darkfield):
 
         if self._original is None:
-            self._original = self._raw
+            self._original = self.raw
 
-        if np.shape(self._raw) == np.shape(darkfield):
-            img_corrected = self._raw - darkfield
+        if np.shape(self.raw) == np.shape(darkfield):
+            img_corrected = self.raw - darkfield
         else:
-            img_corrected = self._raw - np.mean(darkfield)
+            img_corrected = self.raw - np.mean(darkfield)
 
-        self._raw = img_corrected
+        self.raw = img_corrected
 
 
     def calculate_stats(self):

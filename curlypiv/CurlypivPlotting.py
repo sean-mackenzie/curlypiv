@@ -75,14 +75,17 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
         ax.plot(u_inner_x, fit_inner_vals, label=r'$Slope_{BPE center}$', color='indianred', alpha=1, linestyle='solid', linewidth=4)
 
         if testname is not None:
-            title = 'E:{}V/mm, f:{}kHz'.format(int(np.round(testname[0], 0)), (testname[1]*1e-2))
+            if testname[1] > 1000:
+                title = 'E{}Vmm f{}kHz'.format(int(np.round(testname[0], 0)), np.round(testname[1], 1))
+            else:
+                title = 'E{}Vmm f{}Hz'.format(int(np.round(testname[0], 0)), int(testname[1]))
         else:
             title = 'E{}Vmm f{}kHz'.format(int(np.round(test.testname[0], 0)), (test.testname[1]*1e-2))
 
         ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$u_{x,mean}$ ($\mu m/s$)')
-        ax.set_ylim(bottom=-15, top=15)
+        ax.set_ylim(bottom=-25, top=25)
 
 
         # plot zero line
@@ -95,7 +98,7 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
 
         if pivSetup.save_u_mean_plot is True:
             pth = pivSetup.save_plot_path
-            title = 'Uslip_mean_E{}Vmm_f{}kHz_{}images'.format(int(np.round(testname[0], 0)), int(testname[1] * 1e-3), num_imgs)
+            title = 'Uslip_mean_E{}Vmm_f{}Hz_{}images'.format(int(np.round(testname[0], 0)), int(testname[1]), num_imgs)
             savepath = pth + '/' + title + '.jpg'
             plt.savefig(fname=savepath)
 
@@ -252,8 +255,11 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
     else:
         dir = "+"
 
-
-    title = 'E{}Vmm f{}Hz Seq{} Frame{}'.format(int(np.round(testname[0],0)), int(testname[1]), seqname, img.frame[0])
+    if testname[1] > 1000:
+        title = 'E{}Vmm f{}kHz Seq{} Frame{}'.format(int(np.round(testname[0], 0)), np.round(testname[1], 1), seqname,
+                                                    img.frame[0])
+    else:
+        title = 'E{}Vmm f{}Hz Seq{} Frame{}'.format(int(np.round(testname[0],0)), int(testname[1]), seqname, img.frame[0])
 
     ax[0].set_title(title, fontsize=10)
     # plot u_mean_columns
@@ -261,7 +267,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
     pux = u_mean_columns
     ax[0].plot(px, pux)
 
-    ax[0].set_ylim(bottom=-15, top=15)
+    ax[0].set_ylim(bottom=-35, top=35)
     ax[0].set_xlabel('x (window)')
     ax[0].set_ylabel(r'$u_{avg} (\mu m/s)$')
 
@@ -290,7 +296,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
 
         if img_piv_plot == 'raw':
             img_plot = img.raw.copy()
-            vmin, vmax = np.percentile(img_plot, (20, 99.5))
+            vmin, vmax = np.percentile(img_plot, (0, 99.99))
             img_plot = rescale_intensity(img_plot, in_range=(vmin, vmax), out_range='dtype')
         if img_piv_plot == 'filtered':
             img_plot = img.filtered.copy()
@@ -317,7 +323,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         width=1.5
         Q = ax[1].quiver(x, y, u, v, [M],
                       units='xy', angles='xy', pivot='mid',
-                         scale_units='xy', scale=0.25, width=4,
+                         scale_units='xy', scale=0.5, width=4,
                       cmap=pivSetup.colorMap, alpha=pivSetup.alpha, norm=pivSetup.colorNorm)
         cbar = fig.colorbar(Q, extend='max', fraction=0.1, shrink=0.5)
         cbar.set_label(label=r'$\frac{\mu m}{s}$', size=16)

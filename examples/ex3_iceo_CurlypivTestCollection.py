@@ -57,12 +57,12 @@ img_animate = 'filtered'
 img_piv = 'filtered'
 window_size1 = 96
 window_size2 = 48
-piv_init_frame = 10
-backSub_init_frames = 10
-piv_num_analysis_frames = 225
+piv_init_frame = 2
+backSub_init_frames = 2
+piv_num_analysis_frames = 10
 save_text=False
 vectors_on_image=True
-show_plot=True
+show_plot=False
 save_plot=False
 save_u_mean_plot=True
 img_piv_plot = img_piv
@@ -92,9 +92,9 @@ bpe_iceo_electrode_config = electrode_configuration(material='Stainless Steel', 
 microgrid_100um = microgrid(gridPath=gridPath, center_to_center_spacing=50e-6, feature_width=10e-6, grid_type='grid', show_grid=grid_show)
 darkfield = darkfield(basePath=dirPath, show_image=darkfield_show_image, save_image=darkfield_save_image, save_plot=darkfield_save_plot)
 emccd = ccd(exposure_time=.040, img_acq_rate=24.826, EM_gain=8, darkfield=darkfield)
-illumination = illumination(basePath=dirPath, source='Hg', excitation=490e-9, emission=525e-9, calculate_illumination_distribution=calculateIllumDistribution, illumPath=flatfieldPath, showIllumPlot=illum_show_plot, save_plot=illum_save_plot, save_image=illum_save_image, save_txt=illum_save_txt)
-x20_objective = objective(numerical_aperture=0.45, magnification=50, field_number=26.5e-3, fluoro_particle=fluoro_particles, illumination=illumination, pixel_to_micron=1.533, basePath=dirPath, channel_height=bpe_iceo_channel.height, show_depth_plot=obj_show_depth_plot, save_depth_plot=obj_save_depth_plot) # Ref: 4/6/21, Brightfield grid @ 20X
-microscope = microscope(type='Olympus iX73', objective=x20_objective, illumination=illumination, ccd=emccd)
+flatfield = illumination(basePath=dirPath, source='Hg', excitation=490e-9, emission=525e-9, calculate_illumination_distribution=calculateIllumDistribution, illumPath=flatfieldPath, showIllumPlot=illum_show_plot, save_plot=illum_save_plot, save_image=illum_save_image, save_txt=illum_save_txt)
+x20_objective = objective(numerical_aperture=0.45, magnification=50, field_number=26.5e-3, fluoro_particle=fluoro_particles, illumination=flatfield, pixel_to_micron=1.533, basePath=dirPath, channel_height=bpe_iceo_channel.height, show_depth_plot=obj_show_depth_plot, save_depth_plot=obj_save_depth_plot) # Ref: 4/6/21, Brightfield grid @ 20X
+microscope = microscope(type='Olympus iX73', objective=x20_objective, illumination=flatfield, ccd=emccd)
 # higher-level
 bpe_iceo_optics = optics(microscope=microscope, fluorescent_particles=fluoro_particles, calibration_grid=microgrid_100um, pixel_to_micron_scaling=x20_objective.pixel_to_micron)
 bpe_iceo_chip = chip(channel=bpe_iceo_channel, material=sio2_chip, bpe=bpe_iceo_bpe, reservoir=bpe_iceo_reservoir, electrodes=bpe_iceo_electrode_config, material_in_optical_path=sio2_chip, thickness_in_optical_path=500e-6)
@@ -117,7 +117,7 @@ bpespecs = {
     'bxmax': 230,
     'bymin': 50,
     'bymax': 285,  # y = 0 is the bottom of the image
-    'multiplier': 1.
+    'multiplier': 1.5
 }
 cropspecs = {
     'xmin': 125,  # x = 0 is the left of the image
@@ -127,17 +127,19 @@ cropspecs = {
 }
 filterspecs = {
     'denoise_wavelet': {'args': [], 'kwargs': dict(method='BayesShrink', mode='soft', rescale_sigma=True)},
-    'median': {'args': [disk(1.25)]},
-    'gaussian': {'args': [0.5]},
+    'median': {'args': [disk(3)]},
+    'gaussian': {'args': [1.5]},
     'equalize_adapthist': {'args': [], 'kwargs': dict(kernel_size=int(np.round(bpe_iceo_bpe.length*1e6/x20_objective.pixel_to_micron/7)))},
-    'rescale_intensity': {'args': [(60, 99.825), ('dtype')]} # 70, 99.999
+    'rescale_intensity': {'args': [(0, 99.99), ('dtype')]} # 70, 99.999
 }
 resizespecs = {
     'method': 'pyramid_expand',
     'scale': 2
 }
 backsubspecs = {
-    'bg_method': 'KNN'
+    'bg_method': 'min',
+    'darkfield': darkfield.img,
+    'flatfield': flatfield.flatfield
 }
 # --- --- --- --- --- ---
 # ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- ---------- --------
@@ -186,7 +188,7 @@ if examine_testset:
     # ----------  STEP 4: PERFORM FLAT FIELD CORRECTION AND CALCULATE IMAGE QUALITY ----------  ----------
     if apply_flatfield_correction:
         # apply flatfield correction
-        testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.illumination.flatfieldPath,
+        testCol.img_testset.apply_flatfield_correction(flatfield=testSetup.optics.microscope.flatfield.flatfieldPath,
                                                        darkfield=testSetup.optics.microscope.ccd.darkfield.img)
     elif apply_darkfield_correction:
         # apply darkfield correction
@@ -243,5 +245,5 @@ piv.piv_analysis(level='all')
 
 
 # import modules
-print('j')
+
 

@@ -104,8 +104,20 @@ class CurlypivPIV(object):
                         seq0_bkg = 0
                         for seqs in runs.seqs.values():
 
-                            # per seq sampling:
+                            # --- per seq sampling: ---
+
+                            # refresh files in each sequence to make sure they are up to date and loaded
                             seqs.refresh_files()
+
+                            # if flatfield/darkfield, correct images prior to background subtraction
+                            if self.backsubspecs['darkfield'] is not None:
+                                seqs.apply_flatfield_correction(self.backsubspecs['darkfield'], self.backsubspecs['flatfield'])
+
+                            # if min/mean background subtraction used, calculate background image and write to file
+                            if self.bg_method['bg_method'] in ['min', 'mean']:
+                                seqs.calculate_background_image(bg_method=self.bg_method['bg_method'])
+
+                            # perform PIV on sequence
                             self.piv(seqs, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), seqname=seqs.name, u_mag_bkg=seq0_bkg)
                             print('Loc: {}, Test: {}, Run: {}, Sequence: {}'.format(locs.name, tests.name, runs.name,seqs.name))
 
@@ -158,9 +170,13 @@ class CurlypivPIV(object):
 
             elif counter <= self.init_frame + self.backSub_init_frames:
 
-                # flatfield correction
-                if self.setup.optics.microscope.ccd.darkfield.img is not None:
-                    img.apply_flatfield_correction(darkfield=self.setup.optics.microscope.ccd.darkfield.img, flatfield=self.setup.optics.microscope.illumination.flatfield)
+                # flatfield correction (THIS FUNCTION IS NOW APPLIED PRIOR TO BACKGROUND SUBTRACTION)
+                #if self.setup.optics.microscope.ccd.darkfield.img is not None:
+                #    img.apply_flatfield_correction(darkfield=self.setup.optics.microscope.ccd.darkfield.img, flatfield=self.setup.optics.microscope.illumination.flatfield)
+
+                # manual background subtraction should be before image cropping and filtering
+                if self.backsubspecs['bg_method'] in ['min', 'mean']:
+                    img.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'], bg_filepath=seqs.img_background)
 
                 # bpe region filtering
                 if self.bpespecs:
@@ -178,8 +194,8 @@ class CurlypivPIV(object):
                 if self.filterspecs:
                     img.image_filter(filterspecs=self.filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
 
-                # subtract background
-                if self.backsubspecs:
+                # algorithmic background subtraction should be last
+                if self.backsubspecs['bg_method'] in ['KNN', 'MOG2', 'CMG']:
                     img.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'])
 
             if counter >= self.init_frame + self.backSub_init_frames:
@@ -187,10 +203,13 @@ class CurlypivPIV(object):
 
                 for im in [img_b]:
 
-                    # flatfield correction
-                    if self.setup.optics.microscope.ccd.darkfield.img is not None:
-                        im.apply_flatfield_correction(darkfield=self.setup.optics.microscope.ccd.darkfield.img,
-                                                       flatfield=self.setup.optics.microscope.illumination.flatfield)
+                    # flatfield correction (THIS FUNCTION IS NOW APPLIED PRIOR TO BACKGROUND SUBTRACTION)
+                    #if self.setup.optics.microscope.ccd.darkfield.img is not None:
+                    #    im.apply_flatfield_correction(darkfield=self.setup.optics.microscope.ccd.darkfield.img, flatfield=self.setup.optics.microscope.illumination.flatfield)
+
+                    # manual background subtraction should be before image cropping and filtering
+                    if self.backsubspecs['bg_method'] in ['min', 'mean']:
+                        im.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'], bg_filepath=seqs.img_background)
 
                     # bpe region filtering
                     if self.bpespecs:
@@ -206,11 +225,10 @@ class CurlypivPIV(object):
 
                     # filter
                     if self.filterspecs:
-                        im.image_filter(filterspecs=self.filterspecs, image_input='raw', image_output='filtered',
-                                         force_rawdtype=True)
+                        im.image_filter(filterspecs=self.filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
 
                     # subtract background
-                    if self.backsubspecs:
+                    if self.backsubspecs['bg_method'] in ['KNN', 'MOG2', 'CMG']:
                         im.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'])
 
 

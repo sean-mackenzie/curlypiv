@@ -672,7 +672,7 @@ class CurlypivSequence(object):
 
     def __init__(self, dirpath, file_type, seqname, filelist,
                  load_files=False, seqid = ('test_', '_X'), frameid = '_X',
-                 file_lim=600, exclude=[]):
+                 file_lim=500, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -745,6 +745,9 @@ class CurlypivSequence(object):
 
                 file_num += 1
 
+            # instantiate the first_file attribute to store an example image of this sequence
+            self.first_file = next(iter(files.items()))[1]
+
         self.files = files
 
     def refresh_files(self):
@@ -803,15 +806,8 @@ class CurlypivSequence(object):
     def get_img_quality(self):
         self.raw_mean, self.raw_std, self.raw_snr = analyze_img_quality(self.files)
 
-    def calc_seq_mean_file(self):
-        means = np.zeros_like(self.first_file.raw)
-        for f in self.files:
-            means += f.raw
-        mean = np.divide(means, len(self.files))
-        return mean
-
-    def apply_flatfield_correction(self, flatfield, darkfield):
-        apply_flatfield_correction(self.files, flatfield, darkfield)
+    def apply_flatfield_correction(self, darkfield, flatfield):
+        apply_flatfield_correction(self.files, darkfield, flatfield)
 
     def apply_darkfield_correction(self, darkfield):
         apply_darkfield_correction(self.files, darkfield)
@@ -825,6 +821,10 @@ class CurlypivSequence(object):
 
 
     def apply_background_subtractor(self, bg_method='KNN', apply_to='raw'):
+        """
+        This curlypivTestCollection.Sequence method inititates the cv2.backgroundSubtractor.
+        Otherwise, pass the sequence files to the image processing class.
+        """
         if bg_method == 'KNN':
             backSub = cv.createBackgroundSubtractorKNN(detectShadows=False)
         elif bg_method == "MOG2":
@@ -833,6 +833,32 @@ class CurlypivSequence(object):
             backSub = None
 
         apply_background_subtractor(self.files, backgroundSubtractor=backSub, bg_method=bg_method, apply_to=apply_to, bg_filepath=None)
+
+    def calculate_background_image(self, bg_method):
+        """
+        This method calculates the background image by taking the min or mean intensity across all images in sequence.
+        """
+        valid_bs_methods = ['min', 'mean']
+
+        if bg_method not in valid_bs_methods:
+            raise ValueError(
+                "{} is not a valid background subtraction method. Use {}".format(bg_method, valid_bs_methods))
+
+        elif bg_method == 'min':
+            bg_min = np.ones_like(self.first_file.raw) * np.max(self.first_file.raw)
+            for img in self.files.values():
+                bg_min = np.where(img.raw<bg_min, img.raw, bg_min)
+
+            self.img_background = bg_min
+
+        elif bg_method == 'mean':
+            bg_mean = np.zeros_like(self.first_file.raw)
+            for img in self.files.values():
+                bg_mean += img.raw
+            bg_mean = np.divide(bg_mean, len(self.files))
+
+            self.img_background = bg_mean
+
 
     def animate_images(self, img_animate='bgs', start=0, stop=200, savePath=None):
         valid_imgs = ['bg', 'bgs', 'filtered', 'mask', 'masked', 'original', 'raw']
@@ -916,9 +942,5 @@ class CurlypivSequence(object):
         return self._size
 
     @property
-    def first_file(self):
-        return self.files[0][1]
-
-    @property
     def mean_file(self):
-        return self.calc_seq_mean_file()
+        return self.calculate_background_image(self, bg_method='mean')

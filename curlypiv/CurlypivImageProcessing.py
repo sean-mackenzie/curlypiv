@@ -63,6 +63,9 @@ def img_resize(img, method='rescale', scale=2, preserve_range=True):
     if method not in valid_methods:
         raise ValueError(
             "{} is not a valid method. Implemented so far are {}".format(method, valid_methods))
+
+    if scale == 1:
+        pass
     elif method == "rescale":
         img = rescale(img, scale, order=1, mode='reflect', cval=0, clip=True, preserve_range=preserve_range,
                       multichannel=False, anti_aliasing=None, anti_aliasing_sigma=None)
@@ -77,7 +80,7 @@ def img_resize(img, method='rescale', scale=2, preserve_range=True):
     return(img)
 
 
-def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_filepath=None):
+def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_filepath=None, plot_background_subtraction=False):
     """
     This subtracts a background input image from the signal input image.
     :param img:         the image to calculate and subtract the background from
@@ -93,7 +96,7 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
     Process Pipeline:
         1. if this manual or algorithmic subtraction
             A: if manual background subtraction
-                1. read the background image filepath into a numpy array.
+                1. if bg_filepath is a filepath (and not numpy array), then read file to disk.
                 2. subtract the background image from the input image.
                 3. assign img_bg, img_bgs, img_mask, and img_masked variables.
             B: if algorithmic background subtraction
@@ -102,52 +105,50 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
                 3. apply filtering to smooth background subtractor mask.
                 3. assign img_bg, img_bgs, img_mask, and img_masked variables.
     """
-    mask_manual = False
 
-    # check data type of input array
-    if img.dtype == 'uint16':
-        img_backSub = np.asarray(img / 255, dtype='uint8')
-    else:
-        img_backSub = img.copy()
-
+    # check to make sure a valid background subtraction method is used
     valid_bs_methods = ['KNN', 'MOG2', 'CMG', 'min', 'mean']
+    if bg_method is not None and bg_method not in valid_bs_methods:
+        raise ValueError(
+            "{} is not a valid method. Implemented so far are {}".format(bg_method, valid_bs_methods))
 
-    if backgroundSubtractor is not None:
-        mask = backgroundSubtractor.apply(img_backSub)
-    else:
-        if bg_method is None:
-            #mask = img_backSub > np.mean(img_backSub) * 1.75
-            adaptive_thresh = threshold_local(img_backSub, block_size=59, offset=-11)
-            mask = img_backSub > adaptive_thresh
-            mask_manual = True
-        elif bg_method not in valid_bs_methods:
+    # if "manual" background subtraction method
+    if bg_method in ['min', 'mean']:
+
+        # check to make sure background image filepath is present and the size matches the input image.
+        if bg_filepath is None:
             raise ValueError(
-                "{} is not a valid method. Implemented so far are {}".format(bg_method, valid_bs_methods[0:2]))
-        elif bg_method == 'KNN':
-            backSub = cv.createBackgroundSubtractorKNN(detectShadows=False)
-            mask = backSub.apply(img_backSub)
-        elif bg_method == "MOG2":
-            backSub = cv.createBackgroundSubtractorMOG2(detectShadows=False)
-            mask = backSub.apply(img_backSub)
-        elif bg_method == 'CMG':
-            backSub = cv.bgsegm.createBackgroundSubtractorGMG(detectShadows=False)
-            mask = backSub.apply(img_backSub)
+                "Background image (bg_filepath) not found. Need to assign array/filepath for the background image.")
         else:
-            raise ValueError(
-                "{} is still under development. Implemented so far are {}".format(bg_method, valid_bs_methods[0:2]))
+            if isinstance(bg_filepath, str):
+                bg = io.imread(fname=bg_filepath)       # if filepath, read to disk.
+            elif isinstance(bg_filepath, np.ndarray):
+                bg = bg_filepath.copy()                 # if array, instantiate new variable.
+            else:
+                raise ValueError("Unknown data type of background image. Should filepath (str) or np.ndarray")
 
-    # masking
-    if mask_manual is False:
-        img_masked = gaussian(mask, sigma=2.5, preserve_range=False)
-        img_masked = np.asarray(np.rint(img_masked*255), dtype='uint16')
-        img_mask = img_masked > np.median(img_masked)*1.35
+            if np.shape(img) != np.shape(bg):
+                raise ValueError(
+                    "Shape mismatch error: input image {} and background image {} need to be identical.".format(np.shape(img), np.shape(bg)))
 
-        # background sub images
-        img_bg = img.copy()
-        img_bg[img_mask] = 0
-        img_bgs = img.copy()
-        img_bgs[~img_mask] = 0
-    else:
+        # perform background subtraction
+        img_mask = np.ones_like(bg)
+        img_bg = bg.copy()
+        img_bgs = img - bg
+        img_masked = img_bgs.copy()
+
+    # algorithmic background subtraction
+    elif bg_method in ['KNN', 'MOG2', 'CMG']:
+
+        # rescale to full range b/c background subtractor performs much better in this manner.
+        img_backSub = rescale_intensity(img, in_range='image', out_range='uint8')
+
+        if backgroundSubtractor is None:
+            raise ValueError("backgroundSubtractor is None. Need to instantiate backgroundSubtractor before this method")
+        else:
+            mask = backgroundSubtractor.apply(img_backSub)
+
+        # perform background subtraction
         img_mask = mask
         img_masked = gaussian(mask, sigma=1, preserve_range=False)
         img_small_parts = white_tophat(img_masked, selem=disk(3))
@@ -155,6 +156,37 @@ def img_subtract_background(img, backgroundSubtractor=None, bg_method='KNN', bg_
         img_masked = np.asarray(np.rint(img_masked*255*254), dtype='uint16')
         img_bg = img.copy()
         img_bgs = img_bg
+
+    # manual background subtraction (if bg_method == None)
+    else:
+        mask_manual = False
+        adaptive_thresh = threshold_local(img, block_size=59, offset=-11)
+        mask = img > adaptive_thresh
+        mask_manual = True
+
+        # masking
+        img_masked = gaussian(mask, sigma=2.5, preserve_range=False)
+        img_masked = np.asarray(np.rint(img_masked*255), dtype='uint16')
+        img_mask = img_masked > np.median(img_masked)*1.35
+
+        # "perform" background subtraction
+        img_bg = img.copy()
+        img_bg[img_mask] = 0
+        img_bgs = img.copy()
+        img_bgs[~img_mask] = 0
+
+    if plot_background_subtraction:
+        # ----- IF YOU WANT TO PLOT THE BACKGROUND SUBTRACTED IMAGE TO CHECK -----
+        fig, axes = plt.subplots(ncols=3, figsize=(12,4))
+        ax = axes.ravel()
+        ax[0].imshow(img)
+        ax[1].imshow(img_bg)
+        ax[2].imshow(img_bgs)
+        ax[0].set_title('input')
+        ax[1].set_title('background')
+        ax[2].set_title('input - background')
+        plt.tight_layout()
+        plt.show()
 
     return(img_bg, img_bgs, img_mask, img_masked)
 
@@ -220,18 +252,15 @@ def img_find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=
     return (particles)
 
 
-def apply_flatfield_correction(img_list, flatfield, darkfield):
+def apply_flatfield_correction(img_list, darkfield, flatfield):
     for img in img_list.values():
-        img.apply_flatfield_correction(flatfield, darkfield)
+        img.apply_flatfield_correction(darkfield, flatfield)
 
 def apply_darkfield_correction(img_list, darkfield):
     for img in img_list.values():
         img.apply_darkfield_correction(darkfield)
 
 def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
-    # apply manual or algorithmic background subtractor
-    if bg_method == 'min':
-        print('yes')
     for img in img_list.values():
         img.image_subtract_background(image_input=apply_to, backgroundSubtractor=backgroundSubtractor, bg_method=bg_method, bg_filepath=bg_filepath)
 
