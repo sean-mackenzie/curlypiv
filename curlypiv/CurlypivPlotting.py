@@ -26,7 +26,7 @@ font = {'family' : 'sans-serif',
 matplotlib.rc('font', **font)
 matplotlib.rcParams['font.sans-serif'] = ['Helvetica']
 
-def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames=None, pivSetup=None):
+def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, testname=None, num_analysis_frames=None, pivSetup=None):
 
     if plot_value == 'u':
         test_runs = []
@@ -51,14 +51,14 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
         test_u_std_columns = np.round(np.mean(test_u_mean_columns_std, axis=0), 2)
 
         # inner BPE analysis
-        u_inner_x = x[4:7]
-        u_inner_slope = test_u_mean_columns[4:7]
+        u_inner_x = x[leftedge+2:rightedge-1]
+        u_inner_slope = test_u_mean_columns[leftedge+2:rightedge-1]
         m_inner, b_inner = np.polyfit(u_inner_x, u_inner_slope,1)
         fit_inner_vals = m_inner*u_inner_x+b_inner
 
         # outer BPE analysis
-        u_outer_x = x[3:8]
-        u_outer_slope = test_u_mean_columns[3:8]
+        u_outer_x = x[leftedge:rightedge+1]
+        u_outer_slope = test_u_mean_columns[leftedge:rightedge+1]
         m_outer, b_outer = np.polyfit(u_outer_x, u_outer_slope,1)
         fit_outer_vals = m_outer*u_outer_x+b_outer
 
@@ -85,7 +85,7 @@ def plot_u_mean_columns(test, plot_value='u', testname=None, num_analysis_frames
         ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$u_{x,mean}$ ($\mu m/s$)')
-        ax.set_ylim(bottom=-25, top=25)
+        ax.set_ylim(bottom=-35, top=35)
 
 
         # plot zero line
@@ -323,7 +323,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         width=1.5
         Q = ax[1].quiver(x, y, u, v, [M],
                       units='xy', angles='xy', pivot='mid',
-                         scale_units='xy', scale=0.5, width=4,
+                         scale_units='xy', scale=0.25, width=3,
                       cmap=pivSetup.colorMap, alpha=pivSetup.alpha, norm=pivSetup.colorNorm)
         cbar = fig.colorbar(Q, extend='max', fraction=0.1, shrink=0.5)
         cbar.set_label(label=r'$\frac{\mu m}{s}$', size=16)

@@ -108,8 +108,8 @@ class CurlypivFile(object):
         # example = [220, 280, 25, 450, 2]
 
         if bpespecs is not None:
-            bymin = self.shape[1] - bpespecs['bymax']
-            bymax = self.shape[1] - bpespecs['bymin']
+            bymin = self.shape[0] - bpespecs['bymax']
+            bymax = self.shape[0] - bpespecs['bymin']
 
             for bpe_func in bpespecs.keys():
                 if bpe_func not in valid_specs:
@@ -150,6 +150,9 @@ class CurlypivFile(object):
 
         valid_crops = ['xmin','xmax','ymin','ymax']
         # example = [20, 500, 0, 400]
+
+        if cropspecs['xmax'] > self.shape[0]:
+            cropspecs['xmax'] = self.shape[0]
 
         if cropspecs['ymax'] > self.shape[1]:
             cropspecs['ymax'] = self.shape[1]

@@ -132,7 +132,7 @@ class CurlypivPIV(object):
                         tests.add_piv_data(zeta=True)
                     else:
                         tests.add_piv_data(zeta=False, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]))
-                        plot_u_mean_columns(tests, plot_value='u', testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), num_analysis_frames=self.num_analysis_frames, pivSetup=self.pivSetup)
+                        plot_u_mean_columns(tests, plot_value='u', leftedge=self.bpe_leftedge, rightedge=self.bpe_rightedge, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), num_analysis_frames=self.num_analysis_frames, pivSetup=self.pivSetup)
                     print(tests)
 
                 # per loc sampling
@@ -248,17 +248,18 @@ class CurlypivPIV(object):
                     print("PIV First-Pass gives no results: (u,v) = Nan")
                     #raise KeyboardInterrupt
 
-                # Masking
+                # Masking (and mask the velocity vector field)
                 if self.pivSetup.settings.image_mask and self.piv_mask is not None:
                     if self.piv_mask == 'bpe':
                         image_mask = np.logical_and(img.bpe_mask, img_b.bpe_mask)
-                        min_length=2
+                        min_length = 3
                     else:
                         image_mask = np.logical_and(img.mask, img_b.mask)
                         min_length = 10
                     mask_coords = preprocess.mask_coordinates(image_mask, min_length=min_length)
                     # mark those points on the grid of PIV inside the mask
                     grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+                    grid_mask = (~grid_mask.astype(bool)).astype(int)
 
                     # mask the velocity
                     u = np.ma.masked_array(u, mask=grid_mask)
@@ -319,6 +320,19 @@ class CurlypivPIV(object):
                                                                             self.pivSetup.settings,
                                                                             mask_coords=mask_coords)
 
+                j=1
+                # Masking (perform masking in order to get BPE mask coordinates on refined mesh)
+                if self.pivSetup.settings.image_mask and self.piv_mask is not None:
+                    if self.piv_mask == 'bpe':
+                        image_mask = np.logical_and(img.bpe_mask, img_b.bpe_mask)
+                        min_length = 3
+                    else:
+                        image_mask = np.logical_and(img.mask, img_b.mask)
+                        min_length = 10
+                    mask_coords = preprocess.mask_coordinates(image_mask, min_length=min_length)
+                    # mark those points on the grid of PIV inside the mask
+                    grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+
                 # If the smoothing is active, we do it at each pass
                 # but not the last one
                 if self.pivSetup.settings.smoothn is True and current_iteration < self.pivSetup.settings.num_iterations - 1:
@@ -339,6 +353,7 @@ class CurlypivPIV(object):
 
                 # calculate the PIV stats
                 if self.pivSetup.calculate_zeta:
+                    # --- if calculating zeta stats (i.e. no BPE) ---
                     img.calculate_stats_zeta(u, v)
 
                     if seqname == 0:
@@ -355,17 +370,34 @@ class CurlypivPIV(object):
                     u_means.append(img.u_mean)
                     v_means.append(img.v_mean)
                 else:
+                    # --- perform masking of [non] BPE regions ---
+                    column_values = grid_mask[0,:]
+                    bpe_columns = np.argwhere(column_values)
+                    bpe_leftedge = np.min(bpe_columns)
+                    bpe_rightedge = np.max(bpe_columns)
+                    bpe_centerline = (bpe_rightedge - bpe_leftedge) / 2
+                    if ((bpe_centerline+1) % 2) == 0:
+                        print("BPE is spanned by an even number of interrogation windows. Consider +/-1 windows for better PIV-to-centerline analys")
+                    else:
+                        bpe_centerline = np.ceil(bpe_centerline)
+                    bpe_centerline = int(bpe_centerline)
+
+                    # store edges
+                    self.bpe_leftedge = bpe_leftedge
+                    self.bpe_rightedge = bpe_rightedge
+                    self.bpe_centerline = bpe_centerline
+
                     # mask non-BPE regions
                     u_zeros_masked_array = ma.masked_where(u == 0, u)
-                    u_far_left_masked_array = u_zeros_masked_array[:, :3]
-                    u_centerline_masked_array = u_zeros_masked_array[:, 5:6]
-                    u_far_right_masked_array = u_zeros_masked_array[:, 8:]
+                    u_far_left_masked_array = u_zeros_masked_array[:, :bpe_leftedge]
+                    u_centerline_masked_array = u_zeros_masked_array[:, bpe_centerline-1:bpe_centerline]
+                    u_far_right_masked_array = u_zeros_masked_array[:, bpe_rightedge:]
 
                     # mask BPE regions
                     u_pos_left_masked_array = ma.masked_less_equal(u, 0)
-                    u_pos_left_masked_array2 = u_pos_left_masked_array[:,3:5]
+                    u_pos_left_masked_array2 = u_pos_left_masked_array[:,bpe_leftedge:bpe_centerline-1]
                     u_neg_right_masked_array = ma.masked_greater_equal(u, 0)
-                    u_neg_right_masked_array2 = u_neg_right_masked_array[:,6:8]
+                    u_neg_right_masked_array2 = u_neg_right_masked_array[:,bpe_centerline:bpe_rightedge]
 
                     # concatenate all the masks together
                     u_dir_masked_array = ma.concatenate([u_far_left_masked_array, u_pos_left_masked_array2,
@@ -475,6 +507,7 @@ class CurlypivPIV(object):
         # reapply the image mask to new grid
         if self.pivSetup.settings.image_mask:
             grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+            grid_mask = (~grid_mask.astype(bool)).astype(int)
             u = np.ma.masked_array(u, mask=grid_mask)
             v = np.ma.masked_array(v, mask=grid_mask)
             # validate
@@ -493,6 +526,7 @@ class CurlypivPIV(object):
         # reapply the image mask to new grid
         if self.pivSetup.settings.image_mask:
             grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+            grid_mask = (~grid_mask.astype(bool)).astype(int)
             u = np.ma.masked_array(u, mask=grid_mask)
             v = np.ma.masked_array(v, mask=grid_mask)
         else:

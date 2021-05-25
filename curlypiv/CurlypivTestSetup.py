@@ -119,8 +119,14 @@ class bpe(object):
         self.height = height
         self.material = material
 
-        self.dielectric_coating = dielectric_coating
+        # adhesion layer used for thin metal film BPE
         self.adhesion_material = adhesion_material
+
+        # dielectric coating on top of BPE
+        if dielectric_coating:
+            self.dielectric_coating = dielectric_coating
+        else:
+            self.dielectric_coating = material_solid(name='no_dielectric', permittivity=1, thickness=1e-12,  Ka=6, Kb=2, reaction_site_density=5)
 
 class optics(object):
     def __init__(self, microscope, fluorescent_particles=None, calibration_grid=None, pixel_to_micron_scaling=None):
@@ -255,11 +261,50 @@ class ccd(object):
 
 class objective(object):
 
-    def __init__(self, numerical_aperture, magnification, fluoro_particle, basePath=None, channel_height=None, illumination=None, wavelength=None, microgrid=None, auto_calc_pix_to_micron_scaling=False, pixel_to_micron=None, field_number=None, n0=1, show_depth_plot=False, save_depth_plot=False):
+    def __init__(self, fluoro_particle, name=None, numerical_aperture=None, magnification=None, basePath=None, channel_height=None, illumination=None, wavelength=None, microgrid=None, auto_calc_pix_to_micron_scaling=False, pixel_to_micron=None, field_number=None, n0=1, show_depth_plot=False, save_depth_plot=False):
+        """
 
-        self.numerical_aperture = numerical_aperture
-        self.magnification = magnification
-        self.field_number = field_number        # field number for 50X LCPLFLN50XLCD is 26.5 mm
+        Objectives in the Pennathur Lab Dark Room uScope:
+
+        20X - LCPlanFL N 20X LCD        [LCPLFLN20xLCD]
+            magnification:          20
+            numerical_aperture:     0.45
+            field_number:           26.5
+            working distance:       7.4 - 8.3 mm
+            transmittance:          90% @ 425 - 670 nm
+            correction collar:      0 - 1.2 mm
+            microns per pixel:      1.55
+        50X - LCPlanFL N 50x LCD        [LCPLFLN50xLCD]
+            magnification:          50
+            numerical aperture:     0.7
+            field number:           26.5
+            working distance:       2.2 - 3 mm
+            transmittance:          90% @ 425 - 650 nm
+            correction collar:      0 - 1.2 mm
+            microns per pixel:      0.6
+
+        Manufacturer website: https://www.olympus-ims.com/en/microscope/lcplfln-lcd/#!cms[focus]=cmsContent11428
+        """
+
+        # if name is entered, then pull all the terms directly
+        if name == 'LCPLFLN20xLCD':
+            self.magnification = 20
+            self.numerical_aperture = 0.45
+            self.field_number = 26.5
+            self.transmittance = 0.9
+            self.pixel_to_micron = 1.55
+        elif name == 'LCPLFLN50xLCD':
+            self.magnification = 50
+            self.numerical_aperture = 0.7
+            self.field_number = 26.5
+            self.transmittance = 0.9
+            self.pixel_to_micron = 0.6
+        else:
+            self.numerical_aperture = numerical_aperture
+            self.magnification = magnification
+            self.field_number = field_number
+
+        # general terms
         self._illumination = illumination
         if self._illumination is not None:
             self._wavelength = self._illumination.emission_wavelength
@@ -280,15 +325,9 @@ class objective(object):
                                  basePath=basePath, savename=None, channel_height=channel_height, objective=magnification)
 
         # grids and scaling factors
-        self.microgrid = microgrid
         if auto_calc_pix_to_micron_scaling and self.pixel_to_micron is None:
+            self.microgrid = microgrid
             self.calculate_pixel_to_micron_scaling()
-        elif pixel_to_micron == '50X':
-            self.pixel_to_micron = 0.588
-        elif pixel_to_micron == '20X':
-            self.pixel_to_micron = 1.515
-        else:
-            self.pixel_to_micron = pixel_to_micron
 
 
     def calculate_field_of_view(self):

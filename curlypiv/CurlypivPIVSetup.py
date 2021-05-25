@@ -61,7 +61,7 @@ class CurlypivPIVSetup(object):
         self.colorMap = 'plasma'
         self.colorNorm = colors.Normalize(vmin=0, vmax=50)
         self.alpha = 1
-        self.scalebar_microns = 250 # units are microns
+        self.scalebar_microns = 25 # units are microns
         self.dpi = 200
 
         # camera
