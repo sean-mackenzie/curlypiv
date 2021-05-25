@@ -129,12 +129,27 @@ class optics(object):
         self.fluorescent_particles = fluorescent_particles
         self.calibration_grid = calibration_grid
 
+        if self.microscope.objective.magnification == 50:
+            self.pixel_to_micron_scaling = 0.60      # (microns/pixels)
+        elif self.microscope.objective.magnification == 20:
+            self.pixel_to_micron_scaling = 1.55      # (microns/pixels)
+        else:
+            raise ValueError("Unable to determine microns/pixels scaling because objective magnification not 50X or 20X")
+
+        if pixel_to_micron_scaling is not None:
+            print("Manual input of pixel_to_micron_scaling is deprecated. A scaling factor of {} um/pix for {} magnification was instantiated.".format(self.pixel_to_micron_scaling, self.microscope.objective.magnification))
+        """
+        --- I THINK THIS SECTION IS DEPRECATED ---
+        Notes: deprecated because calculating the scaling factor or entering it manually is too confusing. I have
+        permanently figured out the correct scaling.
+        
         if microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is None:
             self.pixel_to_micron = microscope.objective.pixel_to_micron
         elif microscope.objective.pixel_to_micron is not None and pixel_to_micron_scaling is not None and microscope.objective.pixel_to_micron != pixel_to_micron_scaling:
             raise ValueError("Conflicting scaling factors: microscope.objective={}, optics={}".format(microscope.objective.pixel_to_micron, pixel_to_micron_scaling))
         elif microscope.objective.pixel_to_micron is None and pixel_to_micron_scaling is not None:
             self.pixel_to_micron = pixel_to_micron_scaling
+        """
 
 class illumination(object):
 
