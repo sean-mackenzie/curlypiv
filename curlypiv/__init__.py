@@ -3,8 +3,4 @@ from .CurlypivTestSetup import CurlypivTestSetup
 from .CurlypivFile import CurlypivFile
 from .CurlypivPIVSetup import CurlypivPIVSetup
 
-from .utils.generate_synthetic_imageset import generate_random_coordinates, generate_sig_settings
-
-
-
-
+from curlypiv.synthetics.generate_synthetic_imageset import generate_random_coordinates, generate_sig_settings

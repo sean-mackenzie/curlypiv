@@ -52,7 +52,7 @@ piv = CurlypivPIV(
     testSetup=CurlypivTestSetup(name='test')
 )
 
-# get appropriate analysis level
+# get appropriate metrics level
 img = piv.get_analysis_level(level=test_level,loc=1, test=2.5, run=1, seq=1, file='test_1_X1.tif')
 
 
@@ -92,5 +92,3 @@ print("Found {} particles in image {}".format(len(particles),find_particles_in))
 img.calculate_stats()
 print("Image statistics")
 print(img.stats)
-
-

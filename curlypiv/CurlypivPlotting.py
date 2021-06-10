@@ -50,33 +50,32 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
         test_u_mean_columns = np.round(np.mean(test_u_mean_columns, axis=0), 1)
         test_u_std_columns = np.round(np.mean(test_u_mean_columns_std, axis=0), 2)
 
-        # inner BPE analysis
+        # inner BPE metrics
         u_inner_x = x[leftedge+2:rightedge-1]
         u_inner_slope = test_u_mean_columns[leftedge+2:rightedge-1]
         m_inner, b_inner = np.polyfit(u_inner_x, u_inner_slope,1)
         fit_inner_vals = m_inner*u_inner_x+b_inner
 
-        # outer BPE analysis
+        # outer BPE metrics
         u_outer_x = x[leftedge:rightedge+1]
         u_outer_slope = test_u_mean_columns[leftedge:rightedge+1]
         m_outer, b_outer = np.polyfit(u_outer_x, u_outer_slope,1)
         fit_outer_vals = m_outer*u_outer_x+b_outer
 
-
         # plotting
         fig, ax = plt.subplots(figsize=(6,4))
 
         # plot data
-        ax.plot(x, test_u_mean_columns, linewidth=2)
-        ax.errorbar(x, test_u_mean_columns, yerr=test_u_std_columns*2, fmt='o', ms=5, color='darkblue',alpha=0.25, ecolor='darkgray', elinewidth=3, capsize=5, capthick=2)
+        ax.plot(x, test_u_mean_columns, linewidth=3)
+        ax.errorbar(x, test_u_mean_columns, yerr=test_u_std_columns*2, fmt='o', ms=7, color='darkblue',alpha=0.35, ecolor='darkgray', elinewidth=3, capsize=5, capthick=2)
 
         # plot fit lines
-        ax.plot(u_outer_x, fit_outer_vals, label=r'$Slope_{BPE edges}$', color='darkred', alpha=1, linestyle='solid', linewidth=4)
-        ax.plot(u_inner_x, fit_inner_vals, label=r'$Slope_{BPE center}$', color='indianred', alpha=1, linestyle='solid', linewidth=4)
+        ax.plot(u_outer_x, fit_outer_vals, label=r'$Slope_{BPE edges}$', color='darkred', alpha=1, linestyle='solid', linewidth=2)
+        ax.plot(u_inner_x, fit_inner_vals, label=r'$Slope_{BPE center}$', color='indianred', alpha=1, linestyle='solid', linewidth=2)
 
         if testname is not None:
             if testname[1] > 1000:
-                title = 'E{}Vmm f{}kHz'.format(int(np.round(testname[0], 0)), np.round(testname[1], 1))
+                title = 'E{}Vmm f{}kHz'.format(int(np.round(testname[0], 0)), np.round(testname[1]*1e-3, 1))
             else:
                 title = 'E{}Vmm f{}Hz'.format(int(np.round(testname[0], 0)), int(testname[1]))
         else:
@@ -85,7 +84,7 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
         ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$u_{x,mean}$ ($\mu m/s$)')
-        ax.set_ylim(bottom=-35, top=35)
+        ax.set_ylim(bottom=-20, top=20)
 
 
         # plot zero line
@@ -104,8 +103,81 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
 
         plt.show()
 
+    if plot_value == 'mobility':
+        test_runs = []
+        test_u_mean_columns = []
+        test_u_mean_columns_std = []
+
+        for run in test.runs.values():
+            test_runs.append(run.name)
+            test_u_mean_x = run.u_mean_x
+            test_u_mean_columns.append(run.u_mean_columns)
+            test_u_mean_columns_std.append(run.u_mean_columns_std)
+
+        num_imgs = num_analysis_frames
+
+        if test_u_mean_x is not None:
+            x = test_u_mean_x
+        else:
+            x = np.arange(len(test_u_mean_columns[0]))
+        test_runs = np.array(test_runs, dtype=float)
+        test_u_mean_columns = np.array(test_u_mean_columns, dtype=float)
+        test_u_mean_columns = test_u_mean_columns / float(testname[0])
+        test_u_mean_columns = np.round(np.mean(test_u_mean_columns, axis=0), 1)
+        test_u_std_columns = np.round(np.mean(test_u_mean_columns_std, axis=0), 2)
+
+        # inner BPE metrics
+        u_inner_x = x[leftedge + 2:rightedge - 1]
+        u_inner_slope = test_u_mean_columns[leftedge + 2:rightedge - 1]
+        m_inner, b_inner = np.polyfit(u_inner_x, u_inner_slope, 1)
+        fit_inner_vals = m_inner * u_inner_x + b_inner
+
+        # outer BPE metrics
+        u_outer_x = x[leftedge:rightedge + 1]
+        u_outer_slope = test_u_mean_columns[leftedge:rightedge + 1]
+        m_outer, b_outer = np.polyfit(u_outer_x, u_outer_slope, 1)
+        fit_outer_vals = m_outer * u_outer_x + b_outer
+
+        # plotting
+        fig, ax = plt.subplots(figsize=(6,4))
+
+        # plot data
+        ax.plot(x, test_u_mean_columns, linewidth=3)
+        ax.errorbar(x, test_u_mean_columns, yerr=test_u_std_columns*2, fmt='o', ms=7, color='darkblue',alpha=0.35, ecolor='darkgray', elinewidth=3, capsize=5, capthick=2)
+
+        # plot fit lines
+        ax.plot(u_outer_x, fit_outer_vals, label=r'$Slope_{BPE edges}$', color='darkred', alpha=1, linestyle='solid', linewidth=2)
+        ax.plot(u_inner_x, fit_inner_vals, label=r'$Slope_{BPE center}$', color='indianred', alpha=1, linestyle='solid', linewidth=2)
+
+        if testname is not None:
+            if testname[1] > 1000:
+                title = 'E{}Vmm f{}kHz'.format(int(np.round(testname[0], 0)), np.round(testname[1]*1e-3, 1))
+            else:
+                title = 'E{}Vmm f{}Hz'.format(int(np.round(testname[0], 0)), int(testname[1]))
+        else:
+            title = 'E{}Vmm f{}kHz'.format(int(np.round(test.testname[0], 0)), (test.testname[1]*1e-2))
+
+        ax.set_title(((r'$\mu_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$\mu_{slip}/\Delta x$, ' + '$\mu_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$\mu_{slip}/\Delta x$, '), fontsize=12)
+        ax.set_xlabel(r'$x$ ($\mu m$)')
+        ax.set_ylabel(r'$\mu_{x,mean}$ ($\mu m \cdot mm /V \cdot s$)')
+        ax.set_ylim(bottom=-1.5, top=1.5)
 
 
+        # plot zero line
+        #ax.axhline(y=0, xmin=x[0], xmax=x[-1], linewidth=3, linestyle='dashed', color='gray', alpha=0.5)
+        plt.axhline(y=0, linewidth=1, linestyle='dashed', color='black', alpha=0.5)
+
+        plt.suptitle((r'$\mu_{slip, BPE-ICEO}$: ' + title + ' ({} imgs)'.format(num_imgs)), fontsize=16)
+        plt.legend(prop=fontprops)
+        plt.tight_layout()
+
+        if pivSetup.save_u_mean_plot is True:
+            pth = pivSetup.save_plot_path
+            title = 'Mobility_mean_E{}Vmm_f{}Hz_{}images'.format(int(np.round(testname[0], 0)), int(testname[1]), num_imgs)
+            savepath = pth + '/' + title + '.jpg'
+            plt.savefig(fname=savepath)
+
+        plt.show()
 
 def plot_per_loc(loc, plot_value='Umag'):
 
@@ -341,6 +413,40 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         else:
             plt.close('all')
 
+def plot_image_process(img_before, img_after, img_reference=None, plot_type='subtract'):
+    """
+    Plot processes performed on an image.
+    img_before      :   the original image
+    img_after       :   the image after processing
+    img_reference   :   (optional) the image used to perform the process
+    plot_type       :   the format to display images
+    """
+
+    if plot_type in ['process', 'filter']:
+        fig, axes = plt.subplots(ncols=2, figsize=(8, 4))
+        ax = axes.ravel()
+        ax[0].imshow(img_before)
+        ax[0].set_title('before: mean={}, std={}'.format(int(np.around(np.mean(img_before),-1)), int(np.around(np.std(img_before),0))))
+        ax[1].imshow(img_after)
+        ax[1].set_title('after: mean={}, std={}'.format(int(np.around(np.mean(img_after),-1)), int(np.around(np.std(img_after),0))))
+        plt.tight_layout()
+        plt.show()
+
+    elif plot_type in ['subtract', 'subtraction', 'correction']:
+
+        if np.shape(img_reference) != np.shape(img_before):
+            img_reference = np.ones_like(img_before) * np.mean(img_reference)
+
+        fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+        ax = axes.ravel()
+        ax[0].imshow(img_before)
+        ax[0].set_title('input: mean={}, std={}'.format(int(np.around(np.mean(img_before), -1)), int(np.around(np.std(img_before), 0))), fontsize=10)
+        ax[1].imshow(img_reference)
+        ax[1].set_title('reference: mean={}'.format(int(np.around(np.mean(img_reference), -1))), fontsize=10)
+        ax[2].imshow(img_after)
+        ax[2].set_title('input - reference: mean={}, std={}'.format(int(np.around(np.mean(img_after), -1)), int(np.around(np.std(img_after), 0))), fontsize=10)
+        plt.tight_layout()
+        plt.show()
 
 def draw_particles(img, particles, color='blue',title='Laplace of Gaussians',figsize=(6,6)):
     # set up figure
@@ -392,6 +498,3 @@ def plot_square(x, y, dx, dy, ax, color='red', alpha=0.5):
 
     kwargs = {'alpha': alpha, 'color': color}
     ax.plot(xx, yy, **kwargs)
-
-
-

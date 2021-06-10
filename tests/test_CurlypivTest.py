@@ -9,7 +9,7 @@ from os.path import join
 
 from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest
 
-# test zeta potential measurement via micro particle image velocimetry analysis
+# test zeta potential measurement via micro particle image velocimetry metrics
 
 # step 1 - load data files, etc
 # --- notes ---

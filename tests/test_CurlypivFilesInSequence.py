@@ -76,7 +76,7 @@ piv = CurlypivPIV(
     testSetup=CurlypivTestSetup(name='test')
 )
 
-# get appropriate analysis level
+# get appropriate metrics level
 imgs = piv.get_analysis_level(level=test_level,loc=loc, test=test, run=run, seq=seq)
 
 
@@ -147,8 +147,3 @@ for img in img1:
         break
 
     counter += 1
-
-
-
-
-

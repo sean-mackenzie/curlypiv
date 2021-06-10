@@ -81,12 +81,12 @@ class CurlypivTestSetup(object):
 
 class chip(object):
 
-    def __init__(self, material=None, channel=None, bpe=None, reservoir=None, electrodes=None, fluid_handling_system=None,
+    def __init__(self, channel=None, bpe=None, reservoir=None, electrodes=None, fluid_handling_system=None,
                  material_in_optical_path=None, thickness_in_optical_path=None):
         """
         Everything important about the chip
         """
-        self.material = material
+        #self.material = material        # deprecated so the channel class can hold this information
         self.channel = channel
         self.bpe = bpe
         self.electrodes = electrodes
@@ -96,14 +96,16 @@ class chip(object):
 
 class channel(object):
 
-    def __init__(self, length=None, width=None, height=None, material_wall_surface=None, material_fluid=None):
+    def __init__(self, length=None, width=None, height=None,
+                 material_bottom_wall_surface=None, material_top_wall_surface=None, material_fluid=None):
         """
         Everything important about the chip
         """
         self.length = length
         self.width = width
         self.height = height
-        self.material_wall_surface = material_wall_surface  # material should only hold relevant electrokinetic data
+        self.material_bottom_wall_surface = material_bottom_wall_surface  # material should only hold relevant electrokinetic data
+        self.material_top_wall_surface = material_top_wall_surface        # material should only hold relevant elect
         self.material_fluid = material_fluid                # could be a mixture of liquid materials + fluorescent particles
 
 class bpe(object):
@@ -118,6 +120,10 @@ class bpe(object):
         self.width = width
         self.height = height
         self.material = material
+
+        if self.material.thickness:
+            if self.material.thickness != self.height:
+                raise ValueError("BPE height must equal BPE material thickness")
 
         # adhesion layer used for thin metal film BPE
         self.adhesion_material = adhesion_material
@@ -198,7 +204,7 @@ class illumination(object):
 
 class darkfield(object):
 
-    def __init__(self, basePath,  darkframePath=None, show_image=False, save_image=False, save_img_type='.tif',
+    def __init__(self, basePath,  darkframePath=None, flip_image_across_axis=None, show_image=False, save_image=False, save_img_type='.tif',
                                       savePath=None, savename=None, save_plot=False):
         """
         details about dark field image
@@ -206,7 +212,7 @@ class darkfield(object):
         """
         self.basePath = basePath
 
-        img, mean, std = calculate_darkfield(self.basePath, darkframePath=darkframePath, show_image=show_image, save_image=save_image, save_img_type=save_img_type,
+        img, mean, std = calculate_darkfield(self.basePath, darkframePath=darkframePath, flip_image_axes=flip_image_across_axis, show_image=show_image, save_image=save_image, save_img_type=save_img_type,
                                       savePath=savePath, savename=savename, save_plot=save_plot)
 
         self.img = img
@@ -228,13 +234,16 @@ class microscope(object):
 
 class ccd(object):
 
-    def __init__(self, exposure_time, img_acq_rate, EM_gain, darkfield=None, binning=None,
+    def __init__(self, exposure_time, img_acq_rate, EM_gain, name='iXon Ultra 897', img_acq_type='emcdd', darkfield=None, binning=None,
                  vertical_pixel_shift_speed=0.5e-6, horizontal_pixel_shift_speed=0.1e-6, horizontal_pixel_shift_rate_bits=14,
                  frame_transfer=True, crop_mode=False, acquisition_mode='kinetic', triggering='internal', readout_mode='image',
                  pixels=512, pixel_size=16e-6):
         """
         describe the CCD class
         """
+        self.name = name
+        self.img_acq_type = img_acq_type
+
         self.exposure_time = exposure_time
         self.img_acq_rate = img_acq_rate
         self.em_gain = EM_gain
@@ -287,6 +296,8 @@ class objective(object):
         """
 
         # if name is entered, then pull all the terms directly
+        self.name = name
+
         if name == 'LCPLFLN20xLCD':
             self.magnification = 20
             self.numerical_aperture = 0.45
@@ -372,41 +383,42 @@ class microgrid(object):
         """
         this class holds images for the microgrid and performs pixel to micron scaling calculations
         """
-        self.gridPath = gridPath
-        self.spacing = center_to_center_spacing
-        self.width = feature_width
-        self.grid_type = grid_type
+        if gridPath is not None:
+            self.gridPath = gridPath
+            self.spacing = center_to_center_spacing
+            self.width = feature_width
+            self.grid_type = grid_type
 
-        # find files in directory
-        file_list = glob.glob(join(self.gridPath, 'grid*.tif'))
+            # find files in directory
+            file_list = glob.glob(join(self.gridPath, 'grid*.tif'))
 
-        if len(file_list) < 1:
-            raise ValueError("No grid*.tif files found in {}".format(self.gridPath))
+            if len(file_list) < 1:
+                raise ValueError("No grid*.tif files found in {}".format(self.gridPath))
 
-        img_grid = np.zeros(shape=(512,512))
-        for f in file_list:
-            img = io.imread(f, plugin='tifffile')
-            if len(np.shape(img)) > 2:
-                img = np.mean(img, axis=0)
-            img_grid += img
+            img_grid = np.zeros(shape=(512,512))
+            for f in file_list:
+                img = io.imread(f, plugin='tifffile')
+                if len(np.shape(img)) > 2:
+                    img = np.mean(img, axis=0)
+                img_grid += img
 
-        img_grid = img_grid / len(file_list)
+            img_grid = img_grid / len(file_list)
 
-        self.img_grid = img_grid
+            self.img_grid = img_grid
 
-        if show_grid is True:
-            fig, ax = plt.subplots()
-            ax.imshow(img_grid, cmap='gray')
+            if show_grid is True:
+                fig, ax = plt.subplots()
+                ax.imshow(img_grid, cmap='gray')
 
-            ax.set_xlabel('pixels')
-            ax.set_ylabel('pixels')
-            plt.title('grid: 10 um Lines; 50 um Spacing')
-            plt.show()
+                ax.set_xlabel('pixels')
+                ax.set_ylabel('pixels')
+                plt.title('grid: 10 um Lines; 50 um Spacing')
+                plt.show()
 
 
 class fluorescent_particles(object):
 
-    def __init__(self, materials=None,diameter=None,fluorescence_spectra=None, concentration=None,
+    def __init__(self, name=None, materials=None,diameter=None,fluorescence_spectra=None, concentration=None,
                  electrophoretic_mobility=None, zeta=None):
         """
         the details of the fluroescent particles used
@@ -417,6 +429,8 @@ class fluorescent_particles(object):
         :param electrophoretic_mobility:
         :param zeta:
         """
+
+        self.name = name
         self.materials=materials
         self.concentration=concentration
         self.electrophoretic_mobility=electrophoretic_mobility
@@ -517,7 +531,7 @@ class material_solid(object):
 
     def __init__(self,  name=None, zeta=None, concentration=None, index_of_refraction=None, transparency=None, fluorescence_spectra=None,
                  permittivity=None, conductivity=None, thickness=None, youngs_modulus=None, poissons_ratio=None,
-                 density=None, dielectric_strength=None, reaction_site_density=None, Ka=None, Kb=None):
+                 density=None, dielectric_strength=None, reaction_site_density=None, Ka=None, Kb=None, width=None, length=None):
         """
         everything about a material
         :param transparency:
@@ -528,6 +542,8 @@ class material_solid(object):
         self.name = name
 
         # geometry
+        self.length = length
+        self.width = width
         self.thickness = thickness
 
         # mechanical
@@ -546,17 +562,18 @@ class material_solid(object):
         # electrochemical
         self.conductivity = conductivity
         if permittivity:
-            self.permittivity = permittivity*8.854e-12
+            self.permittivity = permittivity
         self.zeta = zeta
         self.dielectric_strength = dielectric_strength
         if reaction_site_density:
             self.reaction_site_density = reaction_site_density*1e18     # (#/nm2) surface density of reaction sites: accepts nm2 and converts to m2 (see Squires)
-        self.Ka = Ka                                                    # reaction equilibrium constant
+        self.Ka = Ka                                                    # reaction equilibrium constant - upper bound
+        self.Kb = Kb                                                    # reaction equilibrium constant - lower bound
 
 class material_liquid(object):
 
     def __init__(self, name=None, species=None, concentration=None, conductivity=None, pH=None, density=None, viscosity=None,
-                 permittivity=None, temperature=None):
+                 permittivity=None, temperature=None, valence=1.0):
         """
         everything about a liquid
         :param species:
@@ -567,17 +584,19 @@ class material_liquid(object):
         # identity
         self.name = name
 
-        # electrochemical
+        # electro/chemical
         self.species = species
         self.concentration = concentration      # (mmol) = (mmol/L) = (mol/m3)
         self.conductivity = conductivity
         if permittivity:
-            self.permittivity = permittivity*8.854e-12
+            self.permittivity = permittivity
         if pH:
             self.pH = pH
             self.c_H = 10**-pH * 1e3          # (mmol) = (mmol/L) = (mol/m3); (concentration of Hydrogen ions (H+)
+        self.valence = valence
 
         # mechanical
         self.density = density
         self.viscosity = viscosity
         self.temperature = temperature
+        self.diffusivity = 2e-9                 # (m^2/s) Diffusivity of KCl in DI water [Soni]

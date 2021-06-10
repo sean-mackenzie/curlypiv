@@ -55,38 +55,43 @@ class CurlypivFile(object):
         self._frame = find_substring(self._filename,leadingstring='X',trailingstring=self._filetype, dtype=int)
 
         # Load the image. This sets the ._raw attribute which is the primary raw/original image.
+        self.original = None
+        self._original = None
+        self.raw = None
         self.load(path)
 
         # Crop the raw image to a new size. This sets the ._original attribute to store the original image file. If the
         # image is not cropped or resized, then the ._original attribute is left as None.
-        self._original = None   # store original image
-        self._bg = pre_calc_bg  # background image
-        self._bgs = None        # store background subtracted image
-        self._filtered = None
-        self._processing_stats = None
-        self._mask = pre_calc_mask
-        self._masked = None
+        self.bg = pre_calc_bg  # background image
+        self.bgs = None        # store background subtracted image
+        self.filtered = None
+        self.processing_stats = None
+        self.bpe_mask = None
+        self.mask = pre_calc_mask
+        self.masked = None
 
     def __repr__(self):
         class_ = 'CurlypivImage'
         repr_dict = {'Dimensions': self.shape,
-                     'Sequence': self._sequence,
-                     'Frame': self._frame}
+                     'Sequence': self.sequence,
+                     'Frame': self.frame}
 
-        out_str = "{}, {} \n".format(class_, self.filename)
+        out_str = "{}, {} \n".format(class_, self._filename)
         for key, val in repr_dict.items():
             out_str += '{}: {} \n'.format(key, str(val))
         return out_str
 
     def load(self, path):
-        img = io.imread(self._filepath, plugin='tifffile')
+        img = io.imread(self.filepath, plugin='tifffile')
 
         if len(np.shape(img)) > 2:
-            print('ha')
+            raise ValueError("Image is three-dimensional. Need to investigate more.")
 
-        self._raw = img
+        self.original = img.copy()
+        self._original = img.copy()
+        self.raw = img.copy()
 
-    def _update_processing_stats(self, names, values):
+    def update_processing_stats(self, names, values):
         if not isinstance(names, list):
             names = [names]
         new_stats = {}
@@ -95,18 +100,21 @@ class CurlypivFile(object):
             new_stats.update({name: [value]})
         new_stats = pd.DataFrame(new_stats)
 
-        if self._processing_stats is None:
-            self._processing_stats = new_stats
+        if self.processing_stats is None:
+            self.processing_stats = new_stats
         else:
-            self._processing_stats = new_stats.combine_first(self._processing_stats)
+            self.processing_stats = new_stats.combine_first(self.processing_stats)
 
     def image_bpe_filter(self, bpespecs=None):
         """
         Filter the BPE specific region
         """
-        valid_specs = ['bxmin', 'bxmax', 'bymin', 'bymax', 'multiplier']
-        # example = [220, 280, 25, 450, 2]
+        if bpespecs is not None and self.original is None:
+            self.original = self.raw.copy()
 
+        self.raw, self.bpe_mask = CurlypivImageProcessing.img_apply_bpe_filter(self, bpespecs=bpespecs)
+
+        """
         if bpespecs is not None:
             bymin = self.shape[0] - bpespecs['bymax']
             bymax = self.shape[0] - bpespecs['bymin']
@@ -138,50 +146,67 @@ class CurlypivFile(object):
             # store mask and update raw image
             self.bpe_mask = bpe_mask
             self._raw = raw_masked.data
+            """
 
 
-    def image_crop(self, cropspecs):
+    def image_crop(self, cropspecs, show_crop_plot=False):
         """
         This crops the image.
         The argument cropsize is a dictionary of coordinates with (0,0) as the bottom left corner of the image.
+
+        NOTES:
+            np.shape() returns (y-dim, x-dim)
+            self.shape() returns (y-dim, x-dim)
+
         :param cropspecs:
         :return:
         """
 
-        valid_crops = ['xmin','xmax','ymin','ymax']
-        # example = [20, 500, 0, 400]
-
-        if cropspecs['xmax'] > self.shape[0]:
-            cropspecs['xmax'] = self.shape[0]
-
-        if cropspecs['ymax'] > self.shape[1]:
-            cropspecs['ymax'] = self.shape[1]
-
-        ymin = self.shape[1] - cropspecs['ymax']
-        ymax = self.shape[1] - cropspecs['ymin']
-
-        if cropspecs == None:
+        if cropspecs is None:
             pass
         else:
+            valid_crops = ['xmin', 'xmax', 'ymin', 'ymax'] # example = [20, 500, 0, 400]
+
             for crop_func in cropspecs.keys():
                 if crop_func not in valid_crops:
                     raise ValueError("{} is not a valid crop dimension. Use: {}".format(crop_func, valid_crops))
 
-            if self._original is None:
-                self._original = self._raw.copy()
+            if cropspecs['xmax'] > self.shape[1]:
+                cropspecs['xmax'] = self.shape[1]
 
-            self._raw = self._raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
+            if cropspecs['ymax'] > self.shape[0]:
+                cropspecs['ymax'] = self.shape[0]
+
+            ymin = self.shape[0] - cropspecs['ymax']
+            ymax = self.shape[0] - cropspecs['ymin']
+
+            if self.original is None:
+                self.original = self.raw.copy()
+
+            self.raw = self.raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']] # TODO: fix cropping mistakes - the x and y axes are getting mixed.
+
             self.bpe_mask = self.bpe_mask[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
+
+            if show_crop_plot:
+                # plot to confirm cropping
+                fig, axes = plt.subplots(ncols=2, figsize=(10,6))
+                ax = axes.ravel()
+                ax[0].imshow(self.original, cmap='viridis')
+                ax[0].set_title('Original')
+                ax[1].imshow(self.raw, cmap='viridis')
+                ax[1].imshow(self.bpe_mask, cmap='Reds', alpha=0.5)
+                ax[1].set_title('Raw + BPE mask')
+                plt.show()
 
     def image_resize(self, resizespecs=None):
 
         if resizespecs is not None:
-            if self._original is None:
-                self._original = self.raw.copy()
+            if self.original is None:
+                self.original = self.raw.copy()
 
             self.raw = img_resize(self.raw, method=resizespecs['method'], scale=resizespecs['scale'])
 
-    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_method="KNN", bg_filepath=None):
+    def image_subtract_background(self, image_input='raw', backgroundSubtractor=None, bg_method="KNN", bg_filepath=None, plot_background_subtraction=False):
         """
         This subtracts a background input image from the signal input image.
         :param bg_method:
@@ -194,21 +219,21 @@ class CurlypivFile(object):
             raise ValueError("{} not a valid image for filtering. Use: {}".format(image_input, valid_images))
 
         elif image_input == 'raw':
-            input = self._raw.copy()
+            input = self.raw.copy()
 
         elif image_input == 'filtered':
-            if self._filtered is None:
+            if self.filtered is None:
                 ValueError("This file has no filtered image")
-            input = self._filtered.copy()
+            input = self.filtered.copy()
 
         # perform background subtraction
-        (self._bg, self._bgs, self._mask, self._masked) = img_subtract_background(input, backgroundSubtractor=backgroundSubtractor, bg_filepath=bg_filepath, bg_method=bg_method)
+        (self.bg, self.bgs, self.mask, self.masked) = img_subtract_background(input, backgroundSubtractor=backgroundSubtractor, bg_filepath=bg_filepath, bg_method=bg_method, plot_background_subtraction=plot_background_subtraction)
 
         # apply background subtraction to the input image as well
         if bg_method in ['min', 'mean']:
-            if self._original is None:
-                self._original = self.raw
-            self.raw = self._bgs
+            if self.original is None:
+                self.original = self.raw
+            self.raw = self.bgs
 
     def image_filter(self, filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True):
         """
@@ -220,7 +245,7 @@ class CurlypivFile(object):
 
         This method should self-assign self._processing_stats)
         """
-        raw_dtype = self._raw.dtype
+        raw_dtype = self.raw.dtype
 
         valid_images = ['raw', 'bgs', 'filtered', 'mask', 'masked', 'bg']
 
@@ -232,27 +257,27 @@ class CurlypivFile(object):
         if image_input not in valid_images:
             raise ValueError("{} not a valid image for filtering. Use: {}".format(image_input, valid_images))
         elif image_input == 'raw':
-            input = self._raw.copy()
+            input = self.raw.copy()
         elif image_input == 'bgs':
-            if self._bgs is None:
+            if self.bgs is None:
                 ValueError("This file has no background subtracted image (bgs)")
-            input = self._bgs.copy()
+            input = self.bgs.copy()
         elif image_input == 'filtered':
-            if self._filtered is None:
+            if self.filtered is None:
                 ValueError("This file has no filtered image")
-            input = self._filtered.copy()
+            input = self.filtered.copy()
         elif image_input == 'mask':
-            if self._mask is None:
+            if self.mask is None:
                 ValueError("This file has no mask")
-            input = self._mask.copy()
+            input = self.mask.copy()
         elif image_input == 'masked':
-            if self._masked is None:
+            if self.masked is None:
                 ValueError("This file has no masked image")
-            input = self._masked.copy()
+            input = self.masked.copy()
         elif image_input == 'bg':
-            if self._bg is None:
+            if self.bg is None:
                 ValueError("This file has no background image")
-            input = self._bg.copy()
+            input = self.bg.copy()
         else:
             ValueError("A matching image input from {} was not found".format(valid_images))
 
@@ -267,15 +292,15 @@ class CurlypivFile(object):
             raise ValueError("{} not a valid image for output. Use: {}".format(image_output, valid_outputs))
 
         if image_output == 'bgs':
-            self._bgs = output
+            self.bgs = output
         elif image_output == 'filtered':
-            self._filtered = output
+            self.filtered = output
         elif image_output == 'mask':
-            self._mask = output
+            self.mask = output
         elif image_output == 'masked':
-            self._masked = output
+            self.masked = output
         elif image_output == 'bg':
-            self._bg = output
+            self.bg = output
 
     def calculate_stats_zeta(self, u, v):
         """
@@ -293,64 +318,49 @@ class CurlypivFile(object):
         self.v_std = np.round(np.std(v),2)
         self.M_std = np.round(np.std(M),2)
 
-    def apply_flatfield_correction(self, darkfield, flatfield=None):
+    def apply_flatfield_correction_to_img(self, darkfield, flatfield=None):
+
+        if np.shape(self.raw) != np.shape(darkfield):
+            darkfield = np.mean(darkfield)
 
         if flatfield is None:
-            self.apply_darkfield_correction(darkfield)
-        else:
-            if self._original is None:
-                self._original = self.raw
-
-            vmin, vmax = np.percentile(self.raw, (0, 100))
-
-            img_corrected = (self.raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
-
-            img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
-
-            self.raw = img_corrected
-
-    def apply_darkfield_correction(self, darkfield):
-
-        if self._original is None:
-            self._original = self.raw
-
-        if np.shape(self.raw) == np.shape(darkfield):
             img_corrected = self.raw - darkfield
         else:
-            img_corrected = self.raw - np.mean(darkfield)
+            vmin, vmax = np.percentile(self.raw, (0, 100))
+            img_corrected = (self.raw - darkfield) * np.mean((flatfield - darkfield)) / (flatfield - darkfield)
+            img_corrected = np.asarray(rescale_intensity(img_corrected, in_range='image', out_range=(0, vmax)), dtype='uint16')
 
         self.raw = img_corrected
-
 
     def calculate_stats(self):
         """
         This calculates some basic image statistics and updates the processing stats
         :return:
         """
-        raw_mean = self._raw.mean()
-        raw_std = self._raw.std()
+        raw_mean = self.raw.mean()
+        raw_std = self.raw.std()
 
         # calculate approximate signal to noise ratio
         # background and signal values
-        bkg, sig = np.percentile(self._raw, (50, 99.5))
+        bkg, sig = np.percentile(self.raw, (50, 99.5))
         # masks
-        bkg_mask = self._raw < bkg
-        sig_mask = self._raw > sig
+        bkg_mask = self.raw < bkg
+        sig_mask = self.raw > sig
         # mask the raw image
-        ma_bkg = ma.masked_array(self._raw, mask=bkg_mask)
-        ma_sig = ma.masked_array(self._raw, mask=sig_mask)
+        ma_bkg = ma.masked_array(self.raw, mask=bkg_mask)
+        ma_sig = ma.masked_array(self.raw, mask=sig_mask)
         # compute the approximate signal to noise ratio
         raw_snr = ma_sig.mean() / ma_bkg.std()
 
-        if self._filtered is not None:
+        if self.filtered is not None:
             # pixel intensities
-            filt_mean = self._filtered.mean()
-            filt_std = self._filtered.std()
+            filt_mean = self.filtered.mean()
+            filt_std = self.filtered.std()
         else:
             filt_mean = None
             filt_std = None
 
-        self._update_processing_stats(['raw_mean','raw_std','raw_snr', 'filt_mean','filt_std'],
+        self.update_processing_stats(['raw_mean','raw_std','raw_snr', 'filt_mean','filt_std'],
                                       [raw_mean, raw_std, raw_snr, filt_mean, filt_std])
 
 
@@ -409,23 +419,23 @@ class CurlypivFile(object):
         if image_input not in valid_images:
             raise ValueError("{} not a valid image for filtering. Use: {}".format(image_input, valid_images))
         elif image_input == 'raw':
-            input = self._raw.copy()
+            input = self.raw.copy()
         elif image_input == 'bgs':
-            if self._bgs is None:
+            if self.bgs is None:
                 ValueError("This file has no background subtracted image (bgs)")
-            input = self._bgs.copy()
+            input = self.bgs.copy()
         elif image_input == 'filtered':
-            if self._filtered is None:
+            if self.filtered is None:
                 ValueError("This file has no filtered image")
-            input = self._filtered.copy()
+            input = self.filtered.copy()
         elif image_input == 'mask':
-            if self._mask is None:
+            if self.mask is None:
                 ValueError("This file has no mask")
-            input = self._filtered.copy()
+            input = self.filtered.copy()
         elif image_input == 'masked':
-            if self._masked is None:
+            if self.masked is None:
                 ValueError("This file has no masked image")
-            input = self._filtered.copy()
+            input = self.filtered.copy()
         else:
             ValueError("A matching image input from {} was not found".format(valid_images))
 
@@ -440,7 +450,7 @@ class CurlypivFile(object):
         if particle_density >= 100:
             raise ValueError("Particle density should not be > 100%. Need to reduce overlap or increase threshold")
 
-        self._update_processing_stats(['num_particles','particle_density'],[num_particles,particle_density])
+        self.update_processing_stats(['num_particles','particle_density'],[num_particles,particle_density])
 
         return(particles)
 
@@ -455,62 +465,29 @@ class CurlypivFile(object):
             self.raw = None
 
 
-
     @property
     def name(self):
         return self._filename
-
-    @property
-    def path(self):
-        return self._filepath
 
     @property
     def filename(self):
         return self._filename
 
     @property
-    def filepath(self):
-        return self._filepath
-
-    @property
-    def sequence(self):
-        return self._sequence
-
-    @property
     def frame(self):
         return self._frame
 
     @property
-    def raw(self):
-        return self._raw
+    def filepath(self):
+        return self._filepath
 
     @property
-    def original(self):
-        return self._original
+    def path(self):
+        return self._filepath
 
     @property
-    def bg(self):
-        return self._bg
-
-    @property
-    def bgs(self):
-        return self._bgs
-
-    @property
-    def filtered(self):
-        return self._filtered
-
-    @property
-    def mask(self):
-        return self._mask
-
-    @property
-    def masked(self):
-        return self._masked
-
-    @property
-    def processed(self):
-        return self._processed
+    def filetype(self):
+        return self._filetype
 
     @property
     def shape(self):
@@ -518,29 +495,10 @@ class CurlypivFile(object):
 
     @property
     def stats(self):
-        return self._processing_stats
+        return self.processing_stats
 
-    @raw.setter
-    def raw(self, value):
-        self._raw = value
+    @property
+    def sequence(self):
+        return self._sequence
 
 
-    @bg.setter
-    def bg(self, value):
-        self._bg = value
-
-    @bgs.setter
-    def bgs(self, value):
-        self._bg = value
-
-    @filtered.setter
-    def filtered(self, value):
-        self._filtered = value
-
-    @mask.setter
-    def mask(self, value):
-        self._mask = value
-
-    @masked.setter
-    def masked(self, value):
-        self._masked = value

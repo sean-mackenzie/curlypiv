@@ -7,6 +7,7 @@ Notes about program
 # data I/O
 import sys
 import os
+import copy
 
 # scientific
 import numpy.lib.stride_tricks
@@ -42,14 +43,55 @@ sys.path.append(os.path.abspath("/Users/mackenzie/PycharmProjects/openpiv/openpi
 # 2.0 functions
 
 def img_correct_flatfield(img, img_flatfield, img_darkfield):
-
     m = np.mean(img_flatfield - img_darkfield)
-
     img_corrected = (img - img_darkfield) * m / (img_flatfield - img_darkfield)
-
     img_corrected = rescale_intensity(img_corrected, in_range='image', out_range='uint16')
 
     return img_corrected
+
+def img_apply_bpe_filter(img, bpespecs):
+
+    valid_specs = ['bxmin', 'bxmax', 'bymin', 'bymax', 'multiplier']
+    # example = [220, 280, 25, 450, 2]
+
+    if bpespecs is None:
+        img_bpe_mask = None
+    else:
+        bymin = img.shape[0] - bpespecs['bymax']
+        bymax = img.shape[0] - bpespecs['bymin']
+
+        for bpe_func in bpespecs.keys():
+            if bpe_func not in valid_specs:
+                raise ValueError("{} is not a valid crop dimension. Use: {}".format(bpe_func, valid_specs))
+
+        img_original = copy.copy(img) # copy.deepcopy(img)
+
+        # bpe mask
+        nrows, ncols = np.shape(img)
+        row, col = np.ogrid[:nrows, :ncols]
+        bpe_mask_left = bpespecs['bxmin'] - col < 0
+        bpe_mask_right = bpespecs['bxmax'] - col > 0
+        bpe_mask_top = bymax - row > 0
+        bpe_mask_bottom = bymin - row < 0
+        bpe_mask_cols = np.logical_and(bpe_mask_left, bpe_mask_right)
+        bpe_mask_rows = np.logical_and(bpe_mask_top, bpe_mask_bottom)
+        bpe_mask = np.logical_and(bpe_mask_cols, bpe_mask_rows)
+        img_bpe_masked = np.rint(copy.copy(img)) # TODO: FIX THIS?
+        img_bpe_masked[~bpe_mask] = 0
+
+        # filter bpe region
+        raw_masked = ma.array(img.copy(), mask=~bpe_mask)
+        raw_masked = raw_masked * bpespecs['multiplier']
+
+        # store mask and update raw image
+        img_bpe_mask = bpe_mask
+        img = raw_masked.data
+
+    return img, img_bpe_mask
+
+
+
+
 
 def img_resize(img, method='rescale', scale=2, preserve_range=True):
     """
@@ -200,10 +242,8 @@ def img_filter(img, filterspecs):
     :return:
 
     """
-
     valid_filters = ['none','median','gaussian','white_tophat','rescale_intensity',
                      'denoise_wavelet', 'equalize_adapthist']
-
     filtering_sequence = 1
 
     for process_func in filterspecs.keys():
@@ -254,11 +294,7 @@ def img_find_particles(img, min_sigma=0.5, max_sigma=5, num_sigma=20, threshold=
 
 def apply_flatfield_correction(img_list, darkfield, flatfield):
     for img in img_list.values():
-        img.apply_flatfield_correction(darkfield, flatfield)
-
-def apply_darkfield_correction(img_list, darkfield):
-    for img in img_list.values():
-        img.apply_darkfield_correction(darkfield)
+        img.apply_flatfield_correction_to_img(darkfield, flatfield)
 
 def apply_background_subtractor(img_list, backgroundSubtractor, bg_method='KNN', apply_to='filtered', bg_filepath=None):
     for img in img_list.values():
@@ -283,7 +319,3 @@ def analyze_img_quality(img_list):
     snr = np.round(np.mean(snrs), 2)
 
     return mean, std, snr
-
-
-
-

@@ -61,7 +61,7 @@ class CurlypivPIVSetup(object):
         self.colorMap = 'plasma'
         self.colorNorm = colors.Normalize(vmin=0, vmax=50)
         self.alpha = 1
-        self.scalebar_microns = 25 # units are microns
+        self.scalebar_microns = 250 # units are microns
         self.dpi = 200
 
         # camera
@@ -73,7 +73,7 @@ class CurlypivPIVSetup(object):
         # experimental
         self.E_max = 10e3
         self.particle_diameter = testSetup.optics.fluorescent_particles.diameter
-        self.est_zeta = testSetup.chip.channel.material_wall_surface.zeta
+        self.est_zeta = testSetup.chip.channel.material_bottom_wall_surface.zeta
 
         # scientific
         self.epsr = 80

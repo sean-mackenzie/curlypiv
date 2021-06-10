@@ -1,25 +1,15 @@
-
-from os.path import isdir, join, dirname
-from os import mkdir
-from pathlib import Path
-
 # numerics
 import numpy as np
 from numpy.random import default_rng
 import pandas as pd
 # scientific
-from scipy import signal, misc
-from skimage.exposure import rescale_intensity
 
 
 # matplotlib
-from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt
-import matplotlib
-import cycler
 
 # curlypiv
-from curlypiv.utils.generate_synthetic_imageset import generate_sig_settings, generate_random_coordinates
+from curlypiv.synthetics.generate_synthetic_imageset import generate_sig_settings
 from curlypiv.utils.particle_intensity_weighting import illuminator
 
 
@@ -384,11 +374,3 @@ folder = '/Users/mackenzie/PythonProjects/microsig/examples/example_sean/images/
 settings_dict, settings_path = generate_sig_settings(setup_params, folder=folder)
 # step 2 - generate the test images
 #x, y, z = (setup_params['pixel_dim_x'], setup_params['pixel_dim_y'], setup_params['pixel_dim_z'])
-
-
-
-
-
-
-
-
