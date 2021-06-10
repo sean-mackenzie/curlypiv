@@ -331,7 +331,7 @@ def plot_field_depth(depth_of_corr, depth_of_field=None, show_depth_plot=False, 
         if show_depth_plot:
             plt.show()
 
-def calculate_darkfield(basePath=None, darkframePath=None, show_image=False, save_image=False, save_img_type='.tif',
+def calculate_darkfield(basePath=None, darkframePath=None, flip_image_axes=None, show_image=False, save_image=False, save_img_type='.tif',
                                       savePath=None, savename=None, save_plot=False):
 
     if basePath.endswith('.tif'):
@@ -351,16 +351,26 @@ def calculate_darkfield(basePath=None, darkframePath=None, show_image=False, sav
     if num_images > 1:
         img = io.imread_collection(load_pattern=img_list, conserve_memory=False, plugin='tifffile')
         img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
-
     elif num_images == 1:
         img = io.imread(img_list[0], plugin='tifffile')
-
         if len(np.shape(img)) > 2:
             img = np.asarray(np.rint(np.mean(img, axis=0)), dtype='uint16')
-
     else:
         raise ValueError("No images were found.")
 
+    if flip_image_axes is not None:
+        # 1 = flip across y-axis (vertical); 0 = flip across x-axis (horizontal)
+        if isinstance(flip_image_axes, int):
+            img = np.flip(img, flip_image_axes)
+        elif flip_image_axes == 'y':
+            img = np.flip(img, 1)
+        elif flip_image_axes == 'x':
+            img = np.flip(img, 0)
+        elif flip_image_axes == 'xy':
+            img = np.flip(img, 0)
+            img = np.flip(img, 1)
+        else:
+            raise ValueError("Need to choose either (1, 'y'), (0, 'x'), or ('xy') for image flipping.")
 
     # measure image mean and std
     darkfield_mean = np.round(np.mean(img),1)

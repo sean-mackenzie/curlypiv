@@ -5,10 +5,6 @@ Notes about program
 
 # 1.0 import modules
 # data I/O
-import os
-from os import listdir
-from os.path import isfile, basename, join, isdir
-from collections import OrderedDict
 import glob
 
 # quality control and debugging
@@ -19,17 +15,12 @@ logger = logging.getLogger()
 # Maths/Scientifics
 import numpy as np
 import numpy.ma as ma
-import pandas as pd
 
 # Image Processing
-from skimage import io
 
 # Curlypiv
-import curlypiv.CurlypivTestCollection
 from curlypiv.CurlypivTestCollection import CurlypivSequence
-from curlypiv.utils.microsig import CurlypivMicrosigCollection
-from curlypiv.CurlypivFile import CurlypivFile
-from curlypiv.CurlypivUtils import find_substring
+from curlypiv.synthetics.microsig import CurlypivMicrosigCollection
 
 
 # 2.0 define class
@@ -165,4 +156,3 @@ class CurlypivSyntheticCollection(object):
                                                  setting_file=setting_file, data_files=data_files,
                                                  destination_folder=destination_folder,
                                                  )
-

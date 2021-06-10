@@ -73,7 +73,7 @@ class CurlypivPIVSetup(object):
         # experimental
         self.E_max = 10e3
         self.particle_diameter = testSetup.optics.fluorescent_particles.diameter
-        self.est_zeta = testSetup.chip.channel.material_wall_surface.zeta
+        self.est_zeta = testSetup.chip.channel.material_bottom_wall_surface.zeta
 
         # scientific
         self.epsr = 80

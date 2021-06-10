@@ -23,7 +23,7 @@ kcl = material_liquid(species='KCl', conductivity=25e-4, concentration=0.1, pH=5
 bpe_iceo_reservoir = reservoir(diameter=2e-3, height=2e-3, height_of_reservoir=0, material=kcl)
 # physical
 fluoro_particles = fluorescent_particles(diameter=500e-9, concentration=0.02, materials=polystyrene, electrophoretic_mobility=-20)
-bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=20e-6, material_wall_surface=sio2_channel, material_fluid=kcl)
+bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=20e-6, material_bottom_wall_surface=sio2_channel, material_fluid=kcl)
 bpe_iceo_bpe = bpe(length=500e-6, width=500e-6, height=30e-9, material=gold_bpe)
 bpe_iceo_electrode_config = electrode_configuration(material='Stainless Steel', length=bpe_iceo_channel.length, entrance_length=1e-3)
 # higher-level

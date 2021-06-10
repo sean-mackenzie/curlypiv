@@ -24,11 +24,14 @@ import pandas as pd
 from skimage import io
 import cv2 as cv
 
+# Plotting
+import matplotlib.pyplot as plt
+
 # Curlypiv
 from curlypiv.CurlypivFile import CurlypivFile
 from curlypiv.CurlypivUtils import find_substring
-from curlypiv.CurlypivImageProcessing import analyze_img_quality, apply_flatfield_correction, apply_darkfield_correction, apply_background_subtractor
-
+import curlypiv.CurlypivImageProcessing as CurlypivImageProcessing
+import curlypiv.CurlypivPlotting as CurlypivPlotting
 
 # 2.0 define class
 class CurlypivTestCollection(object):
@@ -39,7 +42,7 @@ class CurlypivTestCollection(object):
                  bpe_specs=None, backsub_specs=None, processing_specs=None, thresholding_specs=None, cropping_specs=None, resizing_specs=None,
                  dir_tests='tests', dir_bg='background', dir_results='results',
                  locid = 'loc', testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 load_files=False, exclude=[],
+                 load_files=False, file_lim=25, exclude=[],
                  calibration_grid_path=None, calibration_illum_path=None, calibration_camnoise_path=None,
                  ):
         super(CurlypivTestCollection, self).__init__()
@@ -60,6 +63,7 @@ class CurlypivTestCollection(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.file_lim = file_lim
         self.load_files = load_files
 
         self._find_locs(exclude=exclude)
@@ -126,7 +130,7 @@ class CurlypivTestCollection(object):
         for lc in [l for l in self.loclist if l.startswith(self.locid)]:
             loc = CurlypivLocation(join(self.path,lc), file_type=self.file_type,
                                 testid=self.testid,runid=self.runid,seqid=self.seqid,frameid=self.frameid,
-                                   load_files=self.load_files)
+                                   load_files=self.load_files, file_lim=self.file_lim)
             locs.update({loc._locname: loc})
             logger.warning('Loaded loc{}'.format(loc._locname))
 
@@ -197,7 +201,7 @@ class CurlypivLocation(object):
 
     def __init__(self, dirpath, file_type,
                  locid = 'loc', testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 load_files=False, exclude=[]):
+                 load_files=False, file_lim=25, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -207,6 +211,7 @@ class CurlypivLocation(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.file_lim = file_lim
         self.load_files = load_files
 
         self._locname = find_substring(string=self.dirpath, leadingstring=self.locid, dtype=int)[0]
@@ -268,7 +273,7 @@ class CurlypivLocation(object):
         for tst in [t for t in self.test_list if t.endswith(self.testid[-1])]:
             test = CurlypivTest(join(self.dirpath,tst), file_type=self.file_type,
                                 testid=self.testid, runid=self.runid, seqid=self.seqid, frameid=self.frameid,
-                                load_files=self.load_files)
+                                load_files=self.load_files, file_lim=self.file_lim)
             j = 1
             tests.update({test._testname: test})
             logger.warning('Loaded test {}'.format(test._testname))
@@ -324,7 +329,7 @@ class CurlypivTest(object):
 
     def __init__(self, dirpath, file_type,
                  testid = ('E', 'Vmm'), runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 load_files=False, exclude=[]):
+                 load_files=False, file_lim=25, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -333,6 +338,7 @@ class CurlypivTest(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.file_lim = file_lim
         self.load_files = load_files
 
         # step 0: asses the length of the test_id
@@ -403,7 +409,7 @@ class CurlypivTest(object):
         for f in self.run_list:
             file = CurlypivRun(join(self.dirpath,f), file_type=self.file_type,
                                runid = self.runid, seqid = self.seqid, frameid = self.frameid,
-                               load_files=self.load_files)
+                               load_files=self.load_files, file_lim=self.file_lim)
             runs.update({file._runname: file})
             logger.warning('Loaded run {}'.format(file._runname))
 
@@ -487,7 +493,7 @@ class CurlypivRun(object):
 
     def __init__(self, dirpath, file_type,
                  runid = ('run', 'num'), seqid = ('test_', '_X'), frameid = '_X',
-                 load_files=False, exclude=[]):
+                 load_files=False, file_lim=25, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -495,6 +501,7 @@ class CurlypivRun(object):
         self.seqid = seqid
         self.frameid = frameid
 
+        self.file_lim = file_lim
         self.load_files = load_files
 
         self._runname = find_substring(string=self.dirpath, leadingstring=self.runid[0], trailingstring=self.runid[1],
@@ -579,7 +586,7 @@ class CurlypivRun(object):
         seqs = OrderedDict()
         for s in self._seqpaths:
             seq = CurlypivSequence(self.dirpath,file_type=self.file_type, seqname=s[0],
-                                   filelist=s[1], seqid=self.seqid, frameid = self.frameid, load_files=self.load_files)
+                                   filelist=s[1], seqid=self.seqid, frameid = self.frameid, load_files=self.load_files, file_lim=self.file_lim)
 
             seqs.update({seq._seqname: seq})
             logger.warning('Loaded sequence {}'.format(seq._seqname))
@@ -672,7 +679,7 @@ class CurlypivSequence(object):
 
     def __init__(self, dirpath, file_type, seqname, filelist,
                  load_files=False, seqid = ('test_', '_X'), frameid = '_X',
-                 file_lim=500, exclude=[]):
+                 file_lim=25, exclude=[]):
 
         self.dirpath = dirpath
         self.file_type = file_type
@@ -736,14 +743,16 @@ class CurlypivSequence(object):
         if load_file:
             file_num = 0
             for f in self.file_list:
-                file = CurlypivFile(join(self.dirpath,f), img_type=self.file_type)
+                file = CurlypivFile(join(self.dirpath, f), img_type=self.file_type)
                 files.update({file.filename: file})
 
                 if file_num == file_limit:
-                    logger.warning("Added the maximum number of files to sequence")
-                    continue
+                    break
 
                 file_num += 1
+
+            if file_num >= file_limit:
+                logger.warning("Added the maximum number of files {} to sequence".format(file_limit))
 
             # instantiate the first_file attribute to store an example image of this sequence
             self.first_file = next(iter(files.items()))[1]
@@ -804,20 +813,22 @@ class CurlypivSequence(object):
     # ----- ----- image processing functions below ----- -----
 
     def get_img_quality(self):
-        self.raw_mean, self.raw_std, self.raw_snr = analyze_img_quality(self.files)
+        self.raw_mean, self.raw_std, self.raw_snr = CurlypivImageProcessing.analyze_img_quality(self.files)
 
-    def apply_flatfield_correction(self, darkfield, flatfield):
-        apply_flatfield_correction(self.files, darkfield, flatfield)
+    def apply_flatfield_correction(self, darkfield, flatfield, plot_flatfield_correction=True):
+        CurlypivImageProcessing.apply_flatfield_correction(self.files, darkfield, flatfield)
+        if plot_flatfield_correction:
+            CurlypivPlotting.plot_image_process(img_before=self.first_file.original, img_after=self.first_file.raw, img_reference=darkfield, plot_type='subtract')
 
-    def apply_darkfield_correction(self, darkfield):
-        apply_darkfield_correction(self.files, darkfield)
-
-    def apply_image_processing(self, bpespecs=None, cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None):
-        for img in self.files.values():
-            img.image_bpe_filter(bpespecs=bpespecs)    # mask bpe region
-            img.image_crop(cropspecs=cropspecs)          # crop
-            img.image_resize(resizespecs=resizespecs)    # resize
-            img.image_filter(filterspecs=filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
+    def apply_image_processing(self, bpespecs=None, cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None, apply_to='all'):
+        if apply_to in ['first', 'first_file', 'one', 1]:
+            pass
+        else:
+            for img in self.files.values():
+                img.image_bpe_filter(bpespecs=bpespecs)         # mask bpe region
+                img.image_crop(cropspecs=cropspecs)             # crop
+                img.image_resize(resizespecs=resizespecs)       # resize
+                img.image_filter(filterspecs=filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
 
 
     def apply_background_subtractor(self, bg_method='KNN', apply_to='raw'):
@@ -832,9 +843,9 @@ class CurlypivSequence(object):
         else:
             backSub = None
 
-        apply_background_subtractor(self.files, backgroundSubtractor=backSub, bg_method=bg_method, apply_to=apply_to, bg_filepath=None)
+        CurlypivImageProcessing.apply_background_subtractor(self.files, backgroundSubtractor=backSub, bg_method=bg_method, apply_to=apply_to, bg_filepath=None)
 
-    def calculate_background_image(self, bg_method):
+    def calculate_background_image(self, bg_method, plot_background_subtraction=False):
         """
         This method calculates the background image by taking the min or mean intensity across all images in sequence.
         """
@@ -859,6 +870,18 @@ class CurlypivSequence(object):
 
             self.img_background = bg_mean
 
+        if plot_background_subtraction:
+            # ----- IF YOU WANT TO PLOT THE BACKGROUND SUBTRACTED IMAGE TO CHECK -----
+            fig, axes = plt.subplots(ncols=3, figsize=(12, 4))
+            ax = axes.ravel()
+            ax[0].imshow(self.first_file.raw)
+            ax[0].set_title('input: mean={}'.format(np.around(np.mean(self.first_file.raw),-1)))
+            ax[1].imshow(self.img_background)
+            ax[1].set_title('background: mean[{}({})]={}'.format(bg_method, len(self.files), np.around(np.mean(self.img_background),-1)))
+            ax[2].imshow(self.first_file.raw - self.img_background)
+            ax[2].set_title('input - background')
+            plt.tight_layout()
+            plt.show()
 
     def animate_images(self, img_animate='bgs', start=0, stop=200, savePath=None):
         valid_imgs = ['bg', 'bgs', 'filtered', 'mask', 'masked', 'original', 'raw']

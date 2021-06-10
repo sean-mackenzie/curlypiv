@@ -3,35 +3,19 @@
 Notes about this test program:
 
 """
-from os.path import isdir, join, dirname
-from os import mkdir
-from pathlib import Path
-from math import ceil
 
 # numerics
-import numpy as np
-import random
-from numpy.random import default_rng
-import pandas as pd
 # scientific
-from scipy import signal, misc
-from skimage.exposure import rescale_intensity
 
 
 # matplotlib
-from mpl_toolkits import mplot3d
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
-from matplotlib import colors, cm
-import cycler
-import time
 
 # curlypiv
 from curlypiv.CurlypivSyntheticCollection import CurlypivSyntheticCollection
 from curlypiv.CurlypivTestSetup import CurlypivTestSetup, chip, material_liquid, material_solid, fluorescent_particles
 from curlypiv.CurlypivTestSetup import illumination, electrode_configuration, microscope, objective, channel, bpe
 from curlypiv.CurlypivTestSetup import reservoir, optics, fluid_handling_system, tubing, ccd, microgrid
-from curlypiv.utils.microsig import CurlypivMicrosigCollection
+from curlypiv.synthetics.microsig import CurlypivMicrosigCollection
 
 # --- assign some paths ---
 gridPath = '/Users/mackenzie/Desktop/testSynthetics/microgrid/grid1_0.tif'
@@ -69,7 +53,7 @@ tubing = tubing(inner_diameter=0.5e-3, length=100e-3, material=tygon)
 fhs = fluid_handling_system(fluid_reservoir=bpe_iceo_reservoir, all_tubing=tubing, onchip_reservoir=bpe_iceo_reservoir)
 # physical
 fluoro_particles = fluorescent_particles(diameter=500e-9, concentration=0.02, materials=polystyrene, electrophoretic_mobility=-20)
-bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=20e-6, material_wall_surface=sio2_channel, material_fluid=kcl)
+bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=20e-6, material_bottom_wall_surface=sio2_channel, material_fluid=kcl)
 bpe_iceo_bpe = bpe(length=500e-6, width=500e-6, height=30e-9, material=gold_bpe)
 bpe_iceo_electrode_config = electrode_configuration(material='Stainless Steel', length=bpe_iceo_channel.length, entrance_length=1e-3)
 # optics
@@ -106,8 +90,3 @@ microsigCol = CurlypivMicrosigCollection(testSetup=testSetup, synCol=synCol, use
                                          to_internal_sequence=to_internal_sequence, output_dtype=output_dtype,
                                          setting_file=setting_file, data_files=data_files, destination_folder=destination_folder,
                                          )
-
-
-
-
-

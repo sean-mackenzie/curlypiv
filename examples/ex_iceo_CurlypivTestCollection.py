@@ -10,7 +10,7 @@ from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest, CurlypivT
 
 # load test files
 name = 'testCol'
-base_path = '/Users/mackenzie/Desktop/iceo-analysis'
+base_path = '/Users/mackenzie/Desktop/iceo-metrics'
 img_type = '.tif'
 testid = ('E','Vmm')
 runid = ('run', 'num')
@@ -111,7 +111,7 @@ tubing = tubing(inner_diameter=0.5e-3, length=100e-3, material=tygon)
 fhs = fluid_handling_system(fluid_reservoir=bpe_iceo_reservoir, all_tubing=tubing, onchip_reservoir=bpe_iceo_reservoir)
 # physical
 fluoro_particles = fluorescent_particles(diameter=500e-9, concentration=2e-5, materials=polystyrene, electrophoretic_mobility=-3.531e-8)    # Ref: 3/4/21 BNL Zetasizer
-bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=15e-6, material_wall_surface=sio2_channel, material_fluid=kcl)                # Ref: 3/11/21, NCF Dektak of PDMS channel height
+bpe_iceo_channel = channel(length=25e-3, width=500e-6, height=15e-6, material_bottom_wall_surface=sio2_channel, material_fluid=kcl)                # Ref: 3/11/21, NCF Dektak of PDMS channel height
 bpe_iceo_bpe = bpe(length=250e-6, width=500e-6, height=30e-9, material=gold_bpe, adhesion_material=alkane_thiol)                            # Ref: 4/6/21, Brightfield BPE images + NCF Dektak
 bpe_iceo_electrode_config = electrode_configuration(material='Stainless Steel', length=bpe_iceo_channel.length, entrance_length=1e-3)
 # optics
@@ -216,4 +216,3 @@ piv.piv_analysis(level='all')
 
 
 # import modules
-

@@ -10,14 +10,14 @@ from os.path import join
 import curlypiv
 from curlypiv.CurlypivTestCollection import CurlypivRun, CurlypivTest, CurlypivTestCollection
 
-# test zeta potential measurement via micro particle image velocimetry analysis
+# test zeta potential measurement via micro particle image velocimetry metrics
 
 # step 1 - load data files, etc
 # --- notes ---
 
 # load image
 name = 'testCol'
-base_path = '/Users/mackenzie/Desktop/iceo-analysis'
+base_path = '/Users/mackenzie/Desktop/iceo-metrics'
 img_type = '.tif'
 testid = ('E','Vmm')
 runid = ('run', 'num')

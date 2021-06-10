@@ -37,6 +37,7 @@ from curlypiv.CurlypivPIVSetup import CurlypivPIVSetup
 from curlypiv.CurlypivFile import CurlypivFile
 from curlypiv.CurlypivUtils import find_substring, get_sublevel
 from curlypiv.CurlypivPlotting import plot_quiver, plot_per_loc, plot_quiver_and_u_mean, plot_u_mean_columns
+import curlypiv.CurlypivImageProcessing as CurlypivImageProcessing
 
 # OpenPIV
 sys.path.append(os.path.abspath("/Users/mackenzie/PythonProjects/openpiv"))
@@ -57,7 +58,7 @@ class CurlypivPIV(object):
 
     def __init__(self, testCollection, testSetup, pivSetup=None,
                  bpespecs=None, cropspecs=None, resizespecs=None, filterspecs=None, backsubspecs=None,
-                 init_frame=100, backSub_init_frames=50, num_analysis_frames=30, img_piv='filtered', img_piv_plot='filtered',
+                 init_frame=100, backSub_init_frames=10, num_analysis_frames=20, img_piv='filtered', img_piv_plot='filtered',
                  piv_mask=None, exclude=[]):
 
         if not isinstance(testCollection, curlypiv.CurlypivTestCollection):
@@ -76,8 +77,6 @@ class CurlypivPIV(object):
         self.filterspecs = filterspecs
         self.backsubspecs = backsubspecs
 
-        self.bg_method = backsubspecs        #backsubspecs.get('bg_method', None)
-        self.backSub = None
         self.img_piv = img_piv
         self.init_frame = init_frame
         self.backSub_init_frames = backSub_init_frames
@@ -97,8 +96,10 @@ class CurlypivPIV(object):
 
         if level == 'all':
             for locs in self.collection.locs.values():
-                if self.bg_method['bg_method'] == 'KNN':
+                if self.backsubspecs['bg_method'] == 'KNN':
                     self.backSub = cv.createBackgroundSubtractorKNN(detectShadows=False)
+                else:
+                    self.backSub = None
                 for tests in locs.tests.values():
                     for runs in tests.runs.values():
                         seq0_bkg = 0
@@ -111,11 +112,15 @@ class CurlypivPIV(object):
 
                             # if flatfield/darkfield, correct images prior to background subtraction
                             if self.backsubspecs['darkfield'] is not None:
-                                seqs.apply_flatfield_correction(self.backsubspecs['darkfield'], self.backsubspecs['flatfield'])
+                                seqs.apply_flatfield_correction(self.backsubspecs['darkfield'], self.backsubspecs['flatfield'], plot_flatfield_correction=self.backsubspecs['show_flatfield_correction'])
 
                             # if min/mean background subtraction used, calculate background image and write to file
-                            if self.bg_method['bg_method'] in ['min', 'mean']:
-                                seqs.calculate_background_image(bg_method=self.bg_method['bg_method'])
+                            if self.backsubspecs['bg_method'] in ['min', 'mean']:
+                                seqs.calculate_background_image(bg_method=self.backsubspecs['bg_method'], plot_background_subtraction=self.backsubspecs['show_backsub'])
+
+                            if self.filterspecs['show_filtering']:
+                                img_, img_bpe_mask_ = CurlypivImageProcessing.img_apply_bpe_filter(img=seqs.first_file.raw, bpespecs=self.bpespecs)
+                                # TODO: FIX THIS MESS!
 
                             # perform PIV on sequence
                             self.piv(seqs, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), seqname=seqs.name, u_mag_bkg=seq0_bkg)
@@ -132,7 +137,8 @@ class CurlypivPIV(object):
                         tests.add_piv_data(zeta=True)
                     else:
                         tests.add_piv_data(zeta=False, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]))
-                        plot_u_mean_columns(tests, plot_value='u', testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), num_analysis_frames=self.num_analysis_frames, pivSetup=self.pivSetup)
+                        plot_u_mean_columns(tests, plot_value='u', leftedge=self.bpe_leftedge, rightedge=self.bpe_rightedge, testname=(tests.name[0]*1e-3/self.L_channel, tests.name[1]), num_analysis_frames=self.num_analysis_frames, pivSetup=self.pivSetup)
+                        plot_u_mean_columns(tests, plot_value='mobility', leftedge=self.bpe_leftedge, rightedge=self.bpe_rightedge, testname=(tests.name[0] * 1e-3 / self.L_channel, tests.name[1]), num_analysis_frames=self.num_analysis_frames, pivSetup=self.pivSetup)
                     print(tests)
 
                 # per loc sampling
@@ -176,7 +182,7 @@ class CurlypivPIV(object):
 
                 # manual background subtraction should be before image cropping and filtering
                 if self.backsubspecs['bg_method'] in ['min', 'mean']:
-                    img.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'], bg_filepath=seqs.img_background)
+                    img.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.backsubspecs['bg_method'], bg_filepath=seqs.img_background, plot_background_subtraction=False)
 
                 # bpe region filtering
                 if self.bpespecs:
@@ -196,20 +202,16 @@ class CurlypivPIV(object):
 
                 # algorithmic background subtraction should be last
                 if self.backsubspecs['bg_method'] in ['KNN', 'MOG2', 'CMG']:
-                    img.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'])
+                    img.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.backsubspecs['bg_method'],  plot_background_subtraction=False)
 
             if counter >= self.init_frame + self.backSub_init_frames:
                 img_b = img_b_list[counter + 1]
 
                 for im in [img_b]:
 
-                    # flatfield correction (THIS FUNCTION IS NOW APPLIED PRIOR TO BACKGROUND SUBTRACTION)
-                    #if self.setup.optics.microscope.ccd.darkfield.img is not None:
-                    #    im.apply_flatfield_correction(darkfield=self.setup.optics.microscope.ccd.darkfield.img, flatfield=self.setup.optics.microscope.illumination.flatfield)
-
                     # manual background subtraction should be before image cropping and filtering
-                    if self.backsubspecs['bg_method'] in ['min', 'mean']:
-                        im.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'], bg_filepath=seqs.img_background)
+                    if self.backsubspecs in ['min', 'mean']:
+                        im.image_subtract_background(image_input='raw', backgroundSubtractor=self.backSub, bg_method=self.backsubspecs['bg_method'], bg_filepath=seqs.img_background,  plot_background_subtraction=False)
 
                     # bpe region filtering
                     if self.bpespecs:
@@ -228,8 +230,8 @@ class CurlypivPIV(object):
                         im.image_filter(filterspecs=self.filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True)
 
                     # subtract background
-                    if self.backsubspecs['bg_method'] in ['KNN', 'MOG2', 'CMG']:
-                        im.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.bg_method['bg_method'])
+                    if self.backsubspecs in ['KNN', 'MOG2', 'CMG']:
+                        im.image_subtract_background(image_input='filtered', backgroundSubtractor=self.backSub, bg_method=self.backsubspecs['bg_method'],  plot_background_subtraction=False)
 
 
                 # 3.1.4 - Start First Pass PIV
@@ -248,17 +250,18 @@ class CurlypivPIV(object):
                     print("PIV First-Pass gives no results: (u,v) = Nan")
                     #raise KeyboardInterrupt
 
-                # Masking
+                # Masking (and mask the velocity vector field)
                 if self.pivSetup.settings.image_mask and self.piv_mask is not None:
                     if self.piv_mask == 'bpe':
                         image_mask = np.logical_and(img.bpe_mask, img_b.bpe_mask)
-                        min_length=2
+                        min_length = 3
                     else:
                         image_mask = np.logical_and(img.mask, img_b.mask)
                         min_length = 10
                     mask_coords = preprocess.mask_coordinates(image_mask, min_length=min_length)
                     # mark those points on the grid of PIV inside the mask
                     grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+                    grid_mask = (~grid_mask.astype(bool)).astype(int)
 
                     # mask the velocity
                     u = np.ma.masked_array(u, mask=grid_mask)
@@ -319,6 +322,19 @@ class CurlypivPIV(object):
                                                                             self.pivSetup.settings,
                                                                             mask_coords=mask_coords)
 
+                j=1
+                # Masking (perform masking in order to get BPE mask coordinates on refined mesh)
+                if self.pivSetup.settings.image_mask and self.piv_mask is not None:
+                    if self.piv_mask == 'bpe':
+                        image_mask = np.logical_and(img.bpe_mask, img_b.bpe_mask)
+                        min_length = 3
+                    else:
+                        image_mask = np.logical_and(img.mask, img_b.mask)
+                        min_length = 10
+                    mask_coords = preprocess.mask_coordinates(image_mask, min_length=min_length)
+                    # mark those points on the grid of PIV inside the mask
+                    grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+
                 # If the smoothing is active, we do it at each pass
                 # but not the last one
                 if self.pivSetup.settings.smoothn is True and current_iteration < self.pivSetup.settings.num_iterations - 1:
@@ -339,6 +355,7 @@ class CurlypivPIV(object):
 
                 # calculate the PIV stats
                 if self.pivSetup.calculate_zeta:
+                    # --- if calculating zeta stats (i.e. no BPE) ---
                     img.calculate_stats_zeta(u, v)
 
                     if seqname == 0:
@@ -355,17 +372,34 @@ class CurlypivPIV(object):
                     u_means.append(img.u_mean)
                     v_means.append(img.v_mean)
                 else:
+                    # --- perform masking of [non] BPE regions ---
+                    column_values = grid_mask[0,:]
+                    bpe_columns = np.argwhere(column_values)
+                    bpe_leftedge = np.min(bpe_columns)
+                    bpe_rightedge = np.max(bpe_columns)
+                    bpe_centerline = (bpe_rightedge - bpe_leftedge) / 2
+                    if ((bpe_centerline+1) % 2) == 0:
+                        print("BPE is spanned by an even number of interrogation windows. Consider +/-1 windows for better PIV-to-centerline analys")
+                    else:
+                        bpe_centerline = np.ceil(bpe_centerline)
+                    bpe_centerline = int(bpe_centerline)
+
+                    # store edges
+                    self.bpe_leftedge = bpe_leftedge
+                    self.bpe_rightedge = bpe_rightedge
+                    self.bpe_centerline = bpe_centerline
+
                     # mask non-BPE regions
                     u_zeros_masked_array = ma.masked_where(u == 0, u)
-                    u_far_left_masked_array = u_zeros_masked_array[:, :3]
-                    u_centerline_masked_array = u_zeros_masked_array[:, 5:6]
-                    u_far_right_masked_array = u_zeros_masked_array[:, 8:]
+                    u_far_left_masked_array = u_zeros_masked_array[:, :bpe_leftedge]
+                    u_centerline_masked_array = u_zeros_masked_array[:, bpe_centerline-1:bpe_centerline]
+                    u_far_right_masked_array = u_zeros_masked_array[:, bpe_rightedge:]
 
                     # mask BPE regions
                     u_pos_left_masked_array = ma.masked_less_equal(u, 0)
-                    u_pos_left_masked_array2 = u_pos_left_masked_array[:,3:5]
+                    u_pos_left_masked_array2 = u_pos_left_masked_array[:,bpe_leftedge:bpe_centerline-1]
                     u_neg_right_masked_array = ma.masked_greater_equal(u, 0)
-                    u_neg_right_masked_array2 = u_neg_right_masked_array[:,6:8]
+                    u_neg_right_masked_array2 = u_neg_right_masked_array[:,bpe_centerline:bpe_rightedge]
 
                     # concatenate all the masks together
                     u_dir_masked_array = ma.concatenate([u_far_left_masked_array, u_pos_left_masked_array2,
@@ -475,6 +509,7 @@ class CurlypivPIV(object):
         # reapply the image mask to new grid
         if self.pivSetup.settings.image_mask:
             grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+            grid_mask = (~grid_mask.astype(bool)).astype(int)
             u = np.ma.masked_array(u, mask=grid_mask)
             v = np.ma.masked_array(v, mask=grid_mask)
             # validate
@@ -493,6 +528,7 @@ class CurlypivPIV(object):
         # reapply the image mask to new grid
         if self.pivSetup.settings.image_mask:
             grid_mask = preprocess.prepare_mask_on_grid(x, y, mask_coords)
+            grid_mask = (~grid_mask.astype(bool)).astype(int)
             u = np.ma.masked_array(u, mask=grid_mask)
             v = np.ma.masked_array(v, mask=grid_mask)
         else:
@@ -514,36 +550,36 @@ class CurlypivPIV(object):
 
         if level not in valid_levels:
             raise ValueError(
-                "Specified analysis level {} is not one of the valid levels: {}".format(level, valid_levels))
+                "Specified metrics level {} is not one of the valid levels: {}".format(level, valid_levels))
 
         if level == 'file':
 
             if None in [loc, test, run, seq, file]:
-                raise ValueError("Must specify: loc, test, run, seq, and file for file-level analysis")
+                raise ValueError("Must specify: loc, test, run, seq, and file for file-level metrics")
             levels = [loc, test, run, seq, file]
 
         if level == 'seq':
 
             if None in [loc, test, run, seq]:
-                raise ValueError("Must specify: loc, test, run, and seq for seq-level analysis")
+                raise ValueError("Must specify: loc, test, run, and seq for seq-level metrics")
             levels = [loc, test, run, seq]
 
         if level == 'run':
 
             if None in [loc, test, run]:
-                raise ValueError("Must specify: loc, test, and run for run-level analysis")
+                raise ValueError("Must specify: loc, test, and run for run-level metrics")
             levels = [loc, test, run]
 
         if level == 'test':
 
             if None in [loc, test]:
-                raise ValueError("Must specify: loc, and test for test-level analysis")
+                raise ValueError("Must specify: loc, and test for test-level metrics")
             levels = [loc, test]
 
         if level == 'loc':
 
             if None in [loc]:
-                raise ValueError("Must specify loc for loc-level analysis")
+                raise ValueError("Must specify loc for loc-level metrics")
             levels = [loc]
 
         if level == 'all':
@@ -561,5 +597,3 @@ class CurlypivPIV(object):
         vf = np.nan_to_num(v)
 
         return uf, vf
-
-

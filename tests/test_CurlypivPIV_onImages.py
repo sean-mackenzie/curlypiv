@@ -99,7 +99,7 @@ pivSet = CurlypivPIVSetup(name=namePIVSetup, save_text=False, save_plot=True, ve
 # instantiate PIV class object.
 piv = CurlypivPIV(testCollection=testCol, testSetup=testSet, pivSetup=pivSet)
 
-# get appropriate analysis level
+# get appropriate metrics level
 imgs = piv.get_analysis_level(level=test_level, loc=loc, test=test, run=run, seq=seq)
 
 
@@ -317,6 +317,3 @@ for i in range(len(img1)-1):
 
                     savepath = pth + '/' + str(i) + '.png'
                     plt.savefig(fname=savepath,)
-
-
-
