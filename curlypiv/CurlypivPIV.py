@@ -43,14 +43,13 @@ import curlypiv.CurlypivImageProcessing as CurlypivImageProcessing
 sys.path.append(os.path.abspath("/Users/mackenzie/PythonProjects/openpiv"))
 sys.path.append(os.path.abspath("/Users/mackenzie/PythonProjects/openpiv/openpiv"))
 from openpiv import *
-from windef import Settings
-import openpiv.piv
 from openpiv import windef
 from openpiv.windef import Settings, create_deformation_field
 from openpiv import tools, scaling, validation, filters, preprocess
 from openpiv.pyprocess import extended_search_area_piv, get_field_shape, get_coordinates
 from openpiv import smoothn
-from openpiv.preprocess import mask_coordinates
+# useless comment
+
 
 
 # 2.0 define class
