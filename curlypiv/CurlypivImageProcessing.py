@@ -76,7 +76,14 @@ def img_apply_bpe_filter(img, bpespecs):
         bpe_mask_cols = np.logical_and(bpe_mask_left, bpe_mask_right)
         bpe_mask_rows = np.logical_and(bpe_mask_top, bpe_mask_bottom)
         bpe_mask = np.logical_and(bpe_mask_cols, bpe_mask_rows)
-        img_bpe_masked = np.rint(copy.copy(img)) # TODO: FIX THIS?
+
+        #if isinstance(img, 'CurlypivFile'): # TODO: FIX THIS?
+        #    img_bpe_masked = np.rint(img.raw)
+        if isinstance(img, np.ndarray):
+            img_bpe_masked = np.rint(copy.copy(img))
+        else:
+            raise ValueError("Need to check what type the input image array is.")
+
         img_bpe_masked[~bpe_mask] = 0
 
         # filter bpe region
@@ -247,7 +254,9 @@ def img_filter(img, filterspecs):
     filtering_sequence = 1
 
     for process_func in filterspecs.keys():
-        if process_func not in valid_filters:
+        if process_func == 'show_filtering':
+            pass
+        elif process_func not in valid_filters:
             img_filtered = None
             raise ValueError("{} is not a valid filter. Implemented so far are {}".format(process_func, valid_filters))
         elif process_func == "none":

@@ -14,7 +14,7 @@ class BpeIceoDatasetMetric(DatasetMetric):
     Class for computing BPE-ICEO related metrics on a single :obj: '~curlypiv.datasets.BpeIceoDataset'
     """
 
-    def __init__(self, dataset, electric_field_strength=10e3, frequency=100):
+    def __init__(self, dataset, electric_field_strength=10e3, frequency=100, waveform='square'):
         """
         Args:
             dataset (StandardDataset): A StandardDataset.
@@ -30,6 +30,7 @@ class BpeIceoDatasetMetric(DatasetMetric):
         # sets the self.dataset and frequency
         super(BpeIceoDatasetMetric, self).__init__(dataset, electric_field_strength=electric_field_strength)
         self.frequency = frequency
+        self.waveform = waveform
 
         # basic quantities (directly accessible)
         self.w = self.calc_angular_frequency()
@@ -44,6 +45,41 @@ class BpeIceoDatasetMetric(DatasetMetric):
         self.timescale.update(self.calc_total_timescale_bpe())
         self.zeta_induced = self.calc_total_zeta_induced()
         self.u_slip.update(self.calc_total_induced_charge_u_slip())
+
+        # export dataset to csv
+        self.calc_export_to_csv(savename='bpe_iceo_dataset_metric')
+
+    def __repr__(self):
+        class_ = 'BpeIceoDatasetMetric'
+        repr_dict = {
+            'Geometry': self.geometry,
+            'Characteristic': self.characteristic,
+            'Capacitance': self.capacitance,
+            'Current': self.current,
+            'Resistance': self.resistance,
+            'Timescale': self.timescale,
+            'Induced Zeta': self.zeta_induced,
+            'Slip Velocity': self.u_slip
+        }
+        """
+        out_str = "{}: \n".format(class_)
+        for key, val in repr_dict.items():
+            out_str += '{}: {} \n'.format(key, str(val))
+        return out_str
+        """
+        out_str = "{}: \n".format(class_)
+        for key, val in repr_dict.items():
+            if type(val) is list:
+                print('list')
+            elif type(val) is dict:
+                for keyy, vall in val.items():
+                    if type(vall) is np.ndarray:
+                        pass
+                    else:
+                        out_str += '{}: {} \n'.format(keyy, str(vall))
+            else:
+                out_str += '{}: {} \n'.format(key, str(val))
+        return out_str
 
     # ------------- BASICS -----------------
 

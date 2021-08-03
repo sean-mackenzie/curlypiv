@@ -37,8 +37,9 @@ from openpiv.windef import Settings
 class CurlypivPIVSetup(object):
 
     def __init__(self, name, save_text, save_plot, testCollection, testSetup,
-                 win1=128, win2=64, show_plot=False, save_plot_path=None, vectors_on_image=True,
-                 calculate_zeta=False, replace_Nans_with_zeros=True, save_u_mean_plot=False):
+                 win1=128, win2=64, show_plot=False, save_plot_path=None, save_text_path=None, vectors_on_image=True,
+                 calculate_zeta=False, replace_Nans_with_zeros=True, save_u_mean_plot=False,
+                 u_min=-40, u_max=40, v_min=-2.5, v_max=2.5):
         """
         Notes
         """
@@ -48,6 +49,7 @@ class CurlypivPIVSetup(object):
         self.save_text = save_text
         self.save_plot = save_plot
         self.save_u_mean_plot = save_u_mean_plot
+        self.save_text_path = save_text_path
         self.save_plot_path = save_plot_path
         self.show_plot = show_plot
         self.calculate_zeta = calculate_zeta
@@ -59,9 +61,9 @@ class CurlypivPIVSetup(object):
         self.vectors_on_image = vectors_on_image
         self.settings.scale_plot = 1
         self.colorMap = 'plasma'
-        self.colorNorm = colors.Normalize(vmin=0, vmax=50)
-        self.alpha = 1
-        self.scalebar_microns = 250 # units are microns
+        self.colorNorm = colors.Normalize(vmin=0, vmax=75)
+        self.alpha = 0.65
+        self.scalebar_microns = int(2500 / testSetup.optics.microscope.objective.magnification) # units are microns
         self.dpi = 200
 
         # camera
@@ -106,12 +108,16 @@ class CurlypivPIVSetup(object):
         self.settings.sig2noise_method = 'peak2peak'  # Method to compute SNR: 'peak2peak' or 'peak2mean'
         self.settings.sig2noise_mask = 3  # (2 - 5) exclusion distance between highest peak and second highest peak in correlation map
         # min/max velocity vectors for validation
-        self.settings.MinMax_U_disp = (-self.char_u / 7.5, self.char_u / 7.5)  # filter u (units: pixels/frame)
-        self.settings.MinMax_V_disp = (-self.char_u / 50, self.char_u / 50)  # filter v (units: pixels/frame)
+        self.u_min = u_min # microns / second
+        self.u_max = u_max
+        self.v_min = v_min # microns / second
+        self.v_max = v_max
+        self.settings.MinMax_U_disp = (self.u_min * self.pix_per_um * self.dtf, self.u_max * self.pix_per_um * self.dtf)  # filter u (units: pixels/frame)
+        self.settings.MinMax_V_disp = (self.v_min * self.pix_per_um * self.dtf, self.v_max * self.pix_per_um * self.dtf)  # filter v (units: pixels/frame)
         # vector validation
         self.settings.validation_first_pass = True  # Vector validation of first pass
-        self.u_uncertainty = 0.35  # if std(u)*2 < uncertainty: don't apply global std threshold
-        self.v_uncertainty = 0.35  # if std(v)*2 < uncertainty: don't apply global std threshold
+        self.u_uncertainty = 10  # if std(u)*2 < uncertainty: don't apply global std threshold
+        self.v_uncertainty = 10  # if std(v)*2 < uncertainty: don't apply global std threshold
         self.settings.std_threshold = 2.75  # global std validation threshold: global mean +/- stdev * std_threshold
         self.settings.median_threshold = 2.75  # median validation threshold
         self.settings.median_size = 2  # defines the size of the local median kernel
@@ -120,7 +126,7 @@ class CurlypivPIVSetup(object):
         # outlier replacement and smoothing
         self.settings.replace_vectors = True  # Outlier replacement for last pass
         self.replace_Nans_with_zeros = replace_Nans_with_zeros # Outlier replacement where all Nans = 0
-        self.settings.smoothn = True  # Enables Garcia smoothing function of velocity fields
+        self.settings.smoothn = False  # Enables Garcia smoothing function of velocity fields
         self.settings.smoothn_p = [0.01]  # [0.5] Smoothing parameter or auto-calculated using generalized cross-validation (GCV) method
         self.settings.filter_method = 'distance'  # Replace outlier vector method: localmean [square] or disk (unweighted circle), distance (weighted circle)
         self.settings.max_filter_iteration = 3  # maximum iterations performed to replace the outliers (max 10)
@@ -135,8 +141,3 @@ class CurlypivPIVSetup(object):
 
         print('Min/Max V-displacement: ', self.settings.MinMax_V_disp, ' (pixels/frame)')
         print('Min/Max V-displacement: ', np.array([self.settings.MinMax_V_disp[0],self.settings.MinMax_V_disp[1]], dtype=int)*self.pixels_to_microns/self.dtf, ' (um/s)')
-
-
-
-
-

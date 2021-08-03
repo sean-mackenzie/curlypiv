@@ -49,6 +49,17 @@ class BpeIceoDataset(StandardDataset):
 
         super(BpeIceoDataset, self).__init__(**kwargs)
 
+    def __repr__(self):
+        class_ = 'BpeIceoDataset'
+        repr_dict = {
+            'bpe_l': self.bpe_l,
+            'bpe_w': self.bpe_w
+        }
+        out_str = "{}: \n".format(class_)
+        for key, val in repr_dict.items():
+            out_str += '{}: {} \n'.format(key, str(val))
+        return out_str
+
     def validate_dataset(self):
         """
         Error checking and type validation

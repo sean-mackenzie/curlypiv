@@ -3,7 +3,6 @@ import os
 import pandas as pd
 
 from curlypiv.utils.read_XML import read_Squires_XML
-
 from curlypiv.datasets import BpeIceoDataset
 
 
@@ -16,9 +15,7 @@ def import_squires_dataset(return_rows=1, save=False):
         "d_thick": [0, 50],
         "b_conduct": [10, 50],
     }
-
     df = read_Squires_XML(return_rows=return_rows, write_to_disk=save, kwargs=filter_squires)
-
     return df
 
 

@@ -9,7 +9,7 @@ DESCRIPTION = 'A Python implementation of micro particle image velocimetry'
 URL = 'https://github.com/sean-mackenzie/curlypiv'
 EMAIL = 'sean_mackenzie@ucsb.edu'
 AUTHOR = 'Sean MacKenzie'
-REQUIRES_PYTHON = '>=3.8.0'
+REQUIRES_PYTHON = '>=3.7.11'
 
 # What packages are required for this module to be executed?
 REQUIRED = [

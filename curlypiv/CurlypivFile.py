@@ -6,6 +6,7 @@ Notes about program
 # 1.0 import modules
 # data I/O
 from os.path import isfile, basename
+import copy
 
 # Maths/Scientifics
 import numpy as np
@@ -25,8 +26,8 @@ import matplotlib.pyplot as plt
 
 # Curlypiv
 from curlypiv.CurlypivUtils import find_substring
-from curlypiv import CurlypivImageProcessing
-from curlypiv.CurlypivImageProcessing import img_resize, img_subtract_background, img_filter
+from curlypiv.CurlypivImageProcessing import img_resize, img_subtract_background, img_filter, img_apply_bpe_filter, img_find_particles
+from curlypiv.CurlypivPlotting import plot_image_process
 
 
 
@@ -112,22 +113,26 @@ class CurlypivFile(object):
         if bpespecs is not None and self.original is None:
             self.original = self.raw.copy()
 
-        self.raw, self.bpe_mask = CurlypivImageProcessing.img_apply_bpe_filter(self, bpespecs=bpespecs)
+        #self.raw, self.bpe_mask = img_apply_bpe_filter(self, bpespecs=bpespecs)
+        ###
+        img_original = copy.copy(self.raw)   # copy.deepcopy(img)
+        img = copy.copy(self.raw)            # copy.deepcopy(img)
 
-        """
-        if bpespecs is not None:
-            bymin = self.shape[0] - bpespecs['bymax']
-            bymax = self.shape[0] - bpespecs['bymin']
+        valid_specs = ['bxmin', 'bxmax', 'bymin', 'bymax', 'multiplier']
+        # example = [220, 280, 25, 450, 2]
+
+        if bpespecs is None:
+            img_bpe_mask = None
+        else:
+            bymin = img.shape[0] - bpespecs['bymax']
+            bymax = img.shape[0] - bpespecs['bymin']
 
             for bpe_func in bpespecs.keys():
                 if bpe_func not in valid_specs:
                     raise ValueError("{} is not a valid crop dimension. Use: {}".format(bpe_func, valid_specs))
 
-            if self._original is None:
-                self._original = self._raw.copy()
-
             # bpe mask
-            nrows, ncols = np.shape(self._raw)
+            nrows, ncols = np.shape(img)
             row, col = np.ogrid[:nrows, :ncols]
             bpe_mask_left = bpespecs['bxmin'] - col < 0
             bpe_mask_right = bpespecs['bxmax'] - col > 0
@@ -136,17 +141,26 @@ class CurlypivFile(object):
             bpe_mask_cols = np.logical_and(bpe_mask_left, bpe_mask_right)
             bpe_mask_rows = np.logical_and(bpe_mask_top, bpe_mask_bottom)
             bpe_mask = np.logical_and(bpe_mask_cols, bpe_mask_rows)
-            img_bpe_masked = self._raw.copy()
+
+            if isinstance(img, CurlypivFile):  # TODO: FIX THIS?
+                img_bpe_masked = np.rint(img.raw)
+            elif isinstance(img, np.ndarray):
+                img_bpe_masked = np.rint(copy.copy(img))
+            else:
+                raise ValueError("Need to check what type the input image array is.")
+
             img_bpe_masked[~bpe_mask] = 0
 
             # filter bpe region
-            raw_masked = ma.array(self._raw.copy(), mask=~bpe_mask)
+            raw_masked = ma.array(img.copy(), mask=~bpe_mask)
             raw_masked = raw_masked * bpespecs['multiplier']
 
             # store mask and update raw image
-            self.bpe_mask = bpe_mask
-            self._raw = raw_masked.data
-            """
+            img_bpe_mask = bpe_mask
+            img = raw_masked.data
+
+            self.raw, self.bpe_mask = img, img_bpe_mask
+            #return img, img_bpe_mask
 
 
     def image_crop(self, cropspecs, show_crop_plot=False):
@@ -185,7 +199,8 @@ class CurlypivFile(object):
 
             self.raw = self.raw[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']] # TODO: fix cropping mistakes - the x and y axes are getting mixed.
 
-            self.bpe_mask = self.bpe_mask[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
+            if self.bpe_mask is not None:   # TODO: fix when bpe_masking does and doesn't occur
+                self.bpe_mask = self.bpe_mask[ymin:ymax, cropspecs['xmin']:cropspecs['xmax']]
 
             if show_crop_plot:
                 # plot to confirm cropping
@@ -234,6 +249,7 @@ class CurlypivFile(object):
             if self.original is None:
                 self.original = self.raw
             self.raw = self.bgs
+
 
     def image_filter(self, filterspecs, image_input='raw', image_output='filtered', force_rawdtype=True):
         """
@@ -440,7 +456,7 @@ class CurlypivFile(object):
             ValueError("A matching image input from {} was not found".format(valid_images))
 
         # particle identification
-        particles = CurlypivImageProcessing.img_find_particles(img=input, min_sigma=min_sigma, max_sigma=max_sigma,
+        particles = img_find_particles(img=input, min_sigma=min_sigma, max_sigma=max_sigma,
                                                                num_sigma=num_sigma, threshold=threshold, overlap=overlap)
 
         # stats
@@ -500,5 +516,3 @@ class CurlypivFile(object):
     @property
     def sequence(self):
         return self._sequence
-
-
