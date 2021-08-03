@@ -1,3 +1,5 @@
+import csv
+
 import numpy as np
 
 from curlypiv.datasets import StandardDataset
@@ -61,6 +63,9 @@ class DatasetMetric(Metric):
 
         # slip velocities
         self.u_slip = self.calc_total_u_slip()
+
+        self.calc_export_to_csv()
+
 
     # ---------- CHARACTERISTIC ----------------
 
@@ -322,3 +327,30 @@ class DatasetMetric(Metric):
                 2 * (self.dataset.z ** 2 * self.dataset.Na * self.dataset.c) * self.dataset.e ** 2))
 
         return lamb
+
+    # ---------- EXPORT DATASET METRICS ----------------
+    # Package all of the dataset values and metrics into a DataFrame
+
+    def calc_export_to_csv(self, savename='dataset_metric'):
+        """
+        Package all dataset values and metrics into an export-ready DataFrame
+        """
+        # Dataset values
+        with open('/Users/mackenzie/PythonProjects/curlypiv-master/curlypiv/data/results/'+savename+'.csv', 'w') as f:
+            for attribute, value in self.__dict__.items():
+
+                if isinstance(value, StandardDataset):
+                    for attr, val in value.__dict__.items():
+                        if isinstance(val, np.ndarray):
+                            pass
+                        else:
+                            f.write("%s,%s\n" % (attr, val))
+                else:
+                    if isinstance(value, dict):
+                        for atr, vl in value.items():
+                            if isinstance(vl, np.ndarray):
+                                pass
+                            else:
+                                f.write("%s,%s\n" % (atr, vl))
+                    else:
+                        f.write("%s,%s\n" % (attribute, value))

@@ -59,3 +59,5 @@ standardDataset = {
 bpeiceoDataset = BpeIceoDataset(bpe=BPE, dielectric_coating=NO_DIELECTRIC, **standardDataset)
 
 bpeiceoMetrics = BpeIceoDatasetMetric(dataset=bpeiceoDataset, electric_field_strength=10e3, frequency=100)
+
+j=1

@@ -84,7 +84,7 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
         ax.set_title(((r'$U_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$U_{slip}/\Delta x$, ' + '$U_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$U_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$u_{x,mean}$ ($\mu m/s$)')
-        ax.set_ylim(bottom=-20, top=20)
+        ax.set_ylim(bottom=-65, top=5)
 
 
         # plot zero line
@@ -124,6 +124,9 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
         test_u_mean_columns = np.array(test_u_mean_columns, dtype=float)
         test_u_mean_columns = test_u_mean_columns / float(testname[0])
         test_u_mean_columns = np.round(np.mean(test_u_mean_columns, axis=0), 1)
+
+        test_u_mean_columns_std = np.array(test_u_mean_columns_std, dtype=float)
+        test_u_mean_columns_std = test_u_mean_columns_std / float(testname[0])
         test_u_std_columns = np.round(np.mean(test_u_mean_columns_std, axis=0), 2)
 
         # inner BPE metrics
@@ -160,7 +163,7 @@ def plot_u_mean_columns(test, plot_value='u', leftedge=None, rightedge=None, tes
         ax.set_title(((r'$\mu_{slope, inner}$=') + '{} '.format(np.round(m_inner,3)) + r'$\mu_{slip}/\Delta x$, ' + '$\mu_{slope, outer}$=' + '{} '.format(np.round(m_outer,3)) + r'$\mu_{slip}/\Delta x$, '), fontsize=12)
         ax.set_xlabel(r'$x$ ($\mu m$)')
         ax.set_ylabel(r'$\mu_{x,mean}$ ($\mu m \cdot mm /V \cdot s$)')
-        ax.set_ylim(bottom=-1.5, top=1.5)
+        ax.set_ylim(bottom=-5., top=1.)
 
 
         # plot zero line
@@ -260,7 +263,7 @@ def plot_quiver(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
 
         if img_piv_plot == 'raw':
             img_plot = img.raw.copy()
-            vmin, vmax = np.percentile(img_plot, (20, 99.5))
+            vmin, vmax = np.percentile(img_plot, (5, 99.999))
             img_plot = rescale_intensity(img_plot, in_range=(vmin, vmax), out_range='dtype')
         if img_piv_plot == 'filtered':
             img_plot = img.filtered.copy()
@@ -284,7 +287,7 @@ def plot_quiver(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         ax.imshow(img_plot, cmap='gray')
 
         # plot the vector field
-        quiver_scale = 5
+        quiver_scale = 1
         width = 2
         minlength = 0.1
         headwidth = width * 5
@@ -339,7 +342,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
     pux = u_mean_columns
     ax[0].plot(px, pux)
 
-    ax[0].set_ylim(bottom=-35, top=35)
+    ax[0].set_ylim(bottom=-80, top=5)
     ax[0].set_xlabel('x (window)')
     ax[0].set_ylabel(r'$u_{avg} (\mu m/s)$')
 
@@ -368,7 +371,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
 
         if img_piv_plot == 'raw':
             img_plot = img.raw.copy()
-            vmin, vmax = np.percentile(img_plot, (0, 99.99))
+            vmin, vmax = np.percentile(img_plot, (0, 99.95))
             img_plot = rescale_intensity(img_plot, in_range=(vmin, vmax), out_range='dtype')
         if img_piv_plot == 'filtered':
             img_plot = img.filtered.copy()
@@ -395,7 +398,7 @@ def plot_quiver_and_u_mean(x, y, u, v, img, pivSetup, img_piv_plot='filtered',
         width=1.5
         Q = ax[1].quiver(x, y, u, v, [M],
                       units='xy', angles='xy', pivot='mid',
-                         scale_units='xy', scale=0.25, width=3,
+                         scale_units='xy', scale=2.5, width=1.25,
                       cmap=pivSetup.colorMap, alpha=pivSetup.alpha, norm=pivSetup.colorNorm)
         cbar = fig.colorbar(Q, extend='max', fraction=0.1, shrink=0.5)
         cbar.set_label(label=r'$\frac{\mu m}{s}$', size=16)

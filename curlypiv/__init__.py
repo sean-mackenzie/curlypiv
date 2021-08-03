@@ -1,3 +1,5 @@
+import curlypiv.CurlypivFile
+
 from .CurlypivTestCollection import CurlypivTestCollection, CurlypivSequence
 from .CurlypivTestSetup import CurlypivTestSetup
 from .CurlypivFile import CurlypivFile

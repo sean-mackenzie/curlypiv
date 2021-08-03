@@ -3,3 +3,5 @@ from curlypiv.metrics.dataset_metric import DatasetMetric
 from curlypiv.metrics.bpe_iceo_dataset_metric import BpeIceoDatasetMetric
 from curlypiv.metrics.bpe_ice_actuator_dataset_metric import BpeIceoActuatorDatasetMetric
 from curlypiv.metrics import utils
+
+from curlypiv.statistical_analysis import signal_processing

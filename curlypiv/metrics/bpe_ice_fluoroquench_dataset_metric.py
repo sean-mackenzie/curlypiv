@@ -9,17 +9,17 @@ import matplotlib.pyplot as plt
 
 from curlypiv.datasets.standard_dataset import StandardDataset
 from curlypiv.datasets.bpe_iceo_dataset import BpeIceoDataset
-from curlypiv.datasets.bpe_iceo_actuator_dataset import BpeIceoActuatorDataset
+from curlypiv.datasets.bpe_iceo_fluoroquench_dataset import BpeIceoFluoroQuenchDataset
 from curlypiv.metrics import DatasetMetric, BpeIceoDatasetMetric, utils
 from curlypiv.statistical_analysis.signal_processing import generate_waveform
 
 
-class BpeIceoActuatorDatasetMetric(BpeIceoDatasetMetric):
+class BpeIceoFluoroQuenchDatasetMetric(BpeIceoDatasetMetric):
     """
-    Class for computing BPE-ICEO actuator related metrics on a single :obj: '~curlypiv.datasets.BpeIceoActuatorDataset'
+    Class for computing BPE-ICEO fluorescein quenching related metrics on a single :obj: '~curlypiv.datasets.BpeIceoFluoroQuenchDataset'
     """
 
-    def __init__(self, dataset, particle_tracking_data_filepath, electric_field_strength=10e3, frequency=100, waveform='square'):
+    def __init__(self, dataset, fluorescein_quenching_data_filepath, electric_field_strength=10e3, frequency=100, waveform='square'):
         """
         Args:
             dataset (StandardDataset): A StandardDataset.
@@ -29,11 +29,11 @@ class BpeIceoActuatorDatasetMetric(BpeIceoDatasetMetric):
         Raise:
             TypeError: 'dataset' must be a :obj: '~curlypiv.datasets.BpeIceoActuatorDataset' type.
         """
-        if not isinstance(dataset, BpeIceoActuatorDataset):
+        if not isinstance(dataset, BpeIceoFluoroQuenchDataset):
             raise TypeError("'dataset' should be a BpeIceoActuatorDataset")
 
         # sets the self.dataset and frequency
-        super(BpeIceoActuatorDatasetMetric, self).__init__(dataset, electric_field_strength=electric_field_strength,
+        super(BpeIceoFluoroQuenchDatasetMetric, self).__init__(dataset, electric_field_strength=electric_field_strength,
                                                            frequency=frequency, waveform=waveform)
         self.filepath = particle_tracking_data_filepath
 

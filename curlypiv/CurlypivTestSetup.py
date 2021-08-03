@@ -333,7 +333,7 @@ class objective(object):
 
         if show_depth_plot or save_depth_plot:
             plot_field_depth(depth_of_corr=self.depth_of_correlation, depth_of_field=self.depth_of_field, show_depth_plot=show_depth_plot, save_depth_plot=save_depth_plot,
-                                 basePath=basePath, savename=None, channel_height=channel_height, objective=magnification)
+                                 basePath=basePath, savename=None, channel_height=channel_height, objective=self.magnification)
 
         # grids and scaling factors
         if auto_calc_pix_to_micron_scaling and self.pixel_to_micron is None:
